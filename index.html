@@ -1,16 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Time Bonus Cards</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#163628">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --felt:#1f4a3a; --felt-dark:#163628; --card:#fff; --ink:#1b1b1b; --red:#b3262d;
+  --back:#7a1f2b; --text:#f1ecdd; --muted:#a9c2b5; --btn:#e9c46a; --btn-ink:#2a2208;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--felt:#163628;--felt-dark:#0f2a1e}}
+:root[data-theme="dark"]{--felt:#163628;--felt-dark:#0f2a1e}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 30%,var(--felt),var(--felt-dark));
+  color:var(--text);font-family:Georgia,"Times New Roman",serif;display:flex;flex-direction:column;align-items:center;padding:24px 16px 40px}
+h1{font-size:1.6rem;font-weight:600;margin:0 0 4px}
+.sub{margin:0 0 20px;color:var(--muted);font-size:.95rem}
+h2{font-size:1rem;font-weight:600;color:var(--muted);margin:0 0 10px}
+.card{font-size:15px;width:10em;height:14em;border-radius:.8em;background:var(--card);color:var(--ink);position:relative;
+  box-shadow:0 6px 18px rgba(0,0,0,.4);user-select:none;flex:none}
+.card.sm{font-size:10px}
+.play{display:block;margin:8px auto 0;padding:3px 14px;font-size:.85rem;background:var(--btn);color:var(--btn-ink);border-color:var(--btn);font-weight:700}
+.pl{display:flex;justify-content:space-between;align-items:center;gap:12px;background:rgba(0,0,0,.25);border-radius:8px;padding:8px 14px;margin-bottom:6px}
+.pl b{font:700 1.5rem ui-monospace,Menlo,Consolas,monospace;letter-spacing:.15em;color:var(--btn)}
+.tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
+.card.dimmed{opacity:.4}
+.card svg{position:absolute;inset:0;width:100%;height:100%}
+.card.red{color:var(--red)}
+.corner{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:1;font-size:1.5em;font-weight:700}
+.corner.tl{top:.5em;left:.5em}
+.corner.br{bottom:.5em;right:.5em;transform:rotate(180deg)}
+.corner small{font-size:.87em;font-weight:400;margin-top:2px}
+.center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:4.6em}
+.back{background:repeating-linear-gradient(45deg,var(--back) 0 8px,#8d2735 8px 16px);border:8px solid var(--card)}
+.empty{background:transparent;border:2px dashed rgba(241,236,221,.3);box-shadow:none;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:.95rem;text-align:center;padding:10px}
+.card.empty.sm{font-size:10px}
+.pop{animation:flip .35s ease-out}
+@keyframes flip{from{transform:rotateY(90deg) scale(.9)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){.pop{animation:none}}
+.sec{width:100%;max-width:760px;margin-bottom:22px}
+.row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.deckwrap{text-align:center;color:var(--muted);font-size:.9rem}
+.deckwrap .card{margin-bottom:8px}
+.cardbtn{background:none;border:0;padding:0;border-radius:.8em;cursor:pointer;display:block;font:inherit;color:inherit;position:relative}
+.cardbtn.sel .card{outline:4px solid var(--btn);outline-offset:3px}
+.cardbtn.dim{opacity:.45}
+.cardbtn:hover .card{transform:translateY(-4px)}
+.card{transition:transform .12s}
+.rm{position:absolute;top:-8px;right:-8px;width:26px;height:26px;border-radius:50%;padding:0;background:var(--back);color:#fff;
+  border:2px solid var(--card);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.slot{position:relative}
+.msg{min-height:1.4em;text-align:center;color:var(--btn);margin:0 0 12px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center;margin-bottom:12px}
+button,select{font:inherit;border-radius:8px;border:1px solid rgba(241,236,221,.4);padding:10px 16px;cursor:pointer}
+button.primary{background:var(--btn);color:var(--btn-ink);border-color:var(--btn);font-weight:700;font-size:1.05rem;padding:12px 28px}
+button.ghost,select{background:transparent;color:var(--text)}
+select option{color:#111}
+button:disabled,select:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #fff;outline-offset:2px}
+label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.95rem}
+.hint{color:var(--muted);font-size:.85rem;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Time bonus cards</h1>
+<p class="sub">76 cards: 55 time bonuses, 12 power cards and 9 just-for-fun cards. Draw up to 5, keep one, hold 6. Play power cards from your hand.</p>
 
-<html>
-    <h1>
-        Hey, I'm NetworkChuck
-    </h1>
-    <body>
-        <h2>About me</h2>
-        <p>
-            I am a coffee addict who makes vidoes sometimes.
-        </p>
-        <h2>What I'm working on</h2>
-        <p>
-            I'm obsessed with AI right now and I'm working on the CPTS from HTB.
-        </p>
-    </body>
+<div class="sec">
+  <div class="row" style="align-items:center;gap:28px">
+    <div class="deckwrap">
+      <div class="card back" id="deck" aria-hidden="true"></div>
+      <div id="remaining"></div>
+      <div id="discarded"></div>
+    </div>
+    <div class="row" id="pending" aria-live="polite"></div>
+  </div>
+</div>
+
+<p class="msg" id="msg" role="status"></p>
+
+<div class="controls">
+  <select id="n" aria-label="Number of cards to draw">
+    <option value="1">Draw 1</option><option value="2">Draw 2</option><option value="3">Draw 3</option>
+    <option value="4">Draw 4</option><option value="5">Draw 5</option>
+  </select>
+  <button class="primary" id="draw">Draw</button>
+  <button class="ghost" id="act1" hidden></button>
+  <button class="ghost" id="act2" hidden></button>
+</div>
+
+<div class="sec" id="playedSec" hidden>
+  <h2>Played cards</h2>
+  <div id="played"></div>
+</div>
+
+<div class="sec">
+  <h2 id="handTitle"></h2>
+  <div class="row" id="hand"></div>
+</div>
+
+<div class="controls">
+  <button class="ghost" id="shuffle">New game</button>
+</div>
+<p class="hint">Press Space to draw.</p>
+
+<script>
+const DIST=[[2,25],[4,15],[6,10],[8,3],[12,2]];
+const POWERS=[["d1",4],["d2",4],["x1",2],["dup",2],["veto",4],["rand",4],["move",1]];
+const FUN=["veto","rand","move"];
+const POW={d1:{need:1,draw:2,name:"Discard 1, draw 2"},d2:{need:2,draw:3,name:"Discard 2, draw 3"},x1:{name:"Draw 1, expand 1"},dup:{name:"Duplicate another card"},veto:{name:"Veto question"},rand:{name:"Randomize question"},move:{name:"Move"}};
+const COL={2:"#ff1a00",4:"#ff8c00",6:"#ffc800",8:"#22aa22",12:"#2d88f5"};
+const DARK="#202c3e",YEL="#ffc800";
+const FONT='font-family="Montserrat,\'Arial Black\',Arial,sans-serif"';
+let played=[],limit=6,deck=[],hand=[],pending=[],sel=null,discarded=0,mode=null;
+const $=id=>document.getElementById(id);
+
+function build(){
+  const d=[];
+  for(const [m,n] of DIST)for(let i=0;i<n;i++)d.push({k:"time",m});
+  for(const [k,n] of POWERS)for(let i=0;i<n;i++)d.push({k});
+  return d;
+}
+function rand(n){const a=new Uint32Array(1),lim=Math.floor(4294967296/n)*n;let x;do{crypto.getRandomValues(a);x=a[0]}while(x>=lim);return x%n}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
+const name=c=>c.k==="time"?c.m+" minute time bonus":POW[c.k].name;
+
+/* ---------- card faces (SVG, 750x1050) ---------- */
+const hexP=d=>'<path d="'+d+'" fill="none" stroke="'+DARK+'" stroke-width="22" stroke-linejoin="round"/>';
+const HEX="M375 78L550 180V375L375 475L200 375V180Z";
+const crd=(x,y,w,h)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="34" fill="#fff" stroke="'+DARK+'" stroke-width="18"/>';
+const bub=(cx,cy,r,t,fs)=>'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#fff" stroke="'+DARK+'" stroke-width="18"/><text x="'+cx+'" y="'+(cy+fs*.35)+'" font-size="'+fs+'" fill="'+DARK+'" text-anchor="middle" '+FONT+' font-weight="900">'+t+'</text>';
+const neg=t=>'<circle cx="505" cy="112" r="68" fill="'+DARK+'"/><text x="505" y="145" font-size="88" fill="#fff" text-anchor="middle" '+FONT+' font-weight="900">'+t+'</text>';
+const title=lines=>lines.map(([t,w],i)=>'<text x="'+(375-w/2)+'" y="'+(605+80*i)+'" font-size="92" fill="'+DARK+'" textLength="'+w+'" lengthAdjust="spacingAndGlyphs" '+FONT+' font-weight="900">'+t+'</text>').join("");
+const body=(lines,y0)=>lines.map((t,i)=>'<text x="375" y="'+(y0+38*i)+'" font-size="34" fill="'+DARK+'" text-anchor="middle" font-family="Montserrat,Arial,sans-serif">'+t+'</text>').join("");
+
+function timeFace(m){
+  const a=m*15*Math.PI/180,x=(375+120*Math.sin(a)).toFixed(1),y=(275-120*Math.cos(a)).toFixed(1);
+  let ticks="";
+  for(let k=0;k<12;k++){const t=k*Math.PI/6,s=Math.sin(t),c=Math.cos(t);
+    ticks+='<line x1="'+(375+s*132).toFixed(1)+'" y1="'+(275-c*132).toFixed(1)+'" x2="'+(375+s*148).toFixed(1)+'" y2="'+(275-c*148).toFixed(1)+'"/>';}
+  const f=FONT+' font-weight="900" text-anchor="middle"';
+  return hexP(HEX)+'<g stroke="'+DARK+'" stroke-width="16" stroke-linecap="round">'+ticks+'</g>'+
+   '<path d="M375 275V155A120 120 0 0 1 '+x+' '+y+'Z" fill="'+COL[m]+'"/>'+
+   '<circle cx="272" cy="372" r="95" fill="'+DARK+'" stroke="#fff" stroke-width="10"/>'+
+   '<path fill="#fff" d="M255 322h34v33h33v34h-33v33h-34v-33h-33v-34h33z"/>'+
+   title([["TIME",222],["BONUS",326]]).replace(/y="685"/,'y="685"').replace('x="264"','x="262"')+
+   '<rect x="298" y="798" width="154" height="194" rx="30" fill="'+YEL+'"/>'+
+   '<rect x="308" y="856" width="134" height="126" rx="18" fill="#fff"/>'+
+   '<text x="375" y="845" font-size="38" fill="#fff" '+f+'>S</text>'+
+   '<text x="375" y="935" font-size="'+(m>9?84:100)+'" fill="'+YEL+'" '+f+'>'+m+'</text>'+
+   '<text x="375" y="974" font-size="32" fill="'+YEL+'" font-family="Montserrat,Arial,sans-serif" text-anchor="middle">MIN</text>';
+}
+function powerFace(k){
+  if(k==="veto"){const R="#ff1a00",st=' fill="none" stroke="'+R+'" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"';
+    return '<path d="'+HEX+'"'+st+'/><rect x="313" y="182" width="124" height="190" rx="28"'+st+'/><path d="M458 135L292 415"'+st+'/>'+
+      title([["VETO",250],["QUESTION",474]])+body(["Play instead of answering a question.","No answer is given, and no reward is","earned."],828);}
+  if(k==="rand"){const st=' fill="none" stroke="'+DARK+'" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"';
+    return '<path d="M375 82L540 178V370L375 462L208 370V178Z"'+st+'/><path d="M208 178L375 270L540 178M375 270V462"'+st+'/>'+
+      '<ellipse cx="375" cy="150" rx="24" ry="17" fill="'+DARK+'"/><ellipse cx="375" cy="205" rx="24" ry="17" fill="'+DARK+'"/>'+
+      '<text x="288" y="355" font-size="140" fill="'+DARK+'" text-anchor="middle" '+FONT+' font-weight="900" transform="rotate(12 288 320)">?</text>'+
+      '<ellipse cx="460" cy="320" rx="15" ry="26" fill="'+DARK+'" transform="rotate(25 460 320)"/>'+
+      title([["RANDOMIZE",566],["QUESTION",474]])+body(["Play instead of answering a question.","A new unasked question from the","same category is chosen, at random,","which you answer instead."],828);}
+  if(k==="move"){
+    const badge=(x,w,c,t)=>'<rect x="'+x+'" y="734" width="'+w+'" height="40" rx="8" fill="'+c+'"/><text x="'+(x+w/2)+'" y="764" font-size="30" fill="#fff" text-anchor="middle" '+FONT+' font-weight="900">'+t+'</text>';
+    const L=["Discard your hand and send the hiders","the location of your transit station.",null,"minute period to establish a new hiding","zone somewhere else on the game","map. The seekers are frozen and your","hiding timer is paused until this new","hiding period has concluded. This card","cannot be played during the endgame."];
+    return hexP("M375 92L540 188V358L375 452L210 358V188Z")+
+      '<path d="M335 362L282 296A64 64 0 1 1 388 296Z" fill="#fff" stroke="'+DARK+'" stroke-width="18" stroke-linejoin="round"/>'+
+      '<path d="M410 366L350 290A74 74 0 1 1 470 290Z" fill="'+DARK+'" stroke="#fff" stroke-width="12" stroke-linejoin="round"/><circle cx="410" cy="243" r="27" fill="#fff"/>'+
+      title([["MOVE",270]])+
+      L.map((t,i)=>t?'<text x="375" y="'+(688+38*i)+'" font-size="34" fill="'+DARK+'" text-anchor="middle" font-family="Montserrat,Arial,sans-serif">'+t+'</text>':'<text x="100" y="764" font-size="34" fill="'+DARK+'" textLength="284" lengthAdjust="spacingAndGlyphs" font-family="Montserrat,Arial,sans-serif">This card grants a</text>').join("")+
+      badge(392,74,"#ffc800","S 10")+badge(476,88,"#ff8c00","M 20")+badge(574,80,"#ff1a00","L 60");}
+  if(k==="d1")return hexP(HEX)+crd(332,152,136,200)+crd(287,197,140,205)+bub(272,378,105,"+2",130)+neg("-1")+
+    title([["DISCARD 1,",506],["DRAW 2",376]])+body(["Discard one other card from your","hand. Then, draw and keep two cards","from the hider deck."],828);
+  if(k==="d2")return hexP(HEX)+crd(332,152,136,200)+crd(287,197,140,205)+crd(242,242,140,205)+bub(272,378,105,"+3",130)+neg("-2")+
+    title([["DISCARD 2,",524],["DRAW 3",376]])+body(["Discard two other cards from your","hand. Then, draw and keep three","cards from the hider deck."],828);
+  if(k==="x1")return hexP("M375 118L520 200V372L375 440L230 372V200Z")+crd(318,192,112,170)+bub(282,355,82,"+1",100)+
+    '<path d="M483 90L531 117V173L483 200L435 173V117Z" fill="'+DARK+'" stroke="'+DARK+'" stroke-width="12" stroke-linejoin="round"/><text x="483" y="170" font-size="62" fill="#fff" text-anchor="middle" '+FONT+' font-weight="900">+1</text>'+
+    title([["DRAW 1,",392],["EXPAND 1",446]])+body(["Draw one card from the hider deck.","For the rest of the round, you can hold","one additional card in your hand."],828);
+  return hexP(HEX)+crd(287,197,140,205)+crd(332,152,138,205)+
+    '<rect x="365" y="238" width="70" height="26" fill="'+DARK+'"/><rect x="387" y="216" width="26" height="70" fill="'+DARK+'"/>'+
+    title([["DUPLICATE",520],["ANOTHER",455],["CARD",262]])+body(["Play this card as a copy of any other","card in your hand. This may be used to","duplicate a time bonus at the end of","your round."],862);
+}
+function cardEl(c,small,pop){
+  const el=document.createElement("div");
+  el.className="card"+(small?" sm":"")+(pop?" pop":"");
+  el.setAttribute("aria-label",name(c)+(c.copy?" (copy)":""));
+  el.innerHTML='<svg viewBox="0 0 750 1050" aria-hidden="true">'+(c.k==="time"?timeFace(c.m):powerFace(c.k))+'</svg>'+(c.copy?'<span class="tag">copy</span>':"");
+  return el;
+}
+function mkBtn(label,fn){const b=document.createElement("button");b.className="cardbtn";b.setAttribute("aria-label",label);b.onclick=fn;return b}
+const dim=el=>{el.classList.add("dimmed");return el};
+
+/* ---------- game logic ---------- */
+function reset(){deck=shuffle(build());hand=[];pending=[];sel=null;discarded=0;mode=null;limit=6;played=[];render()}
+function drawToHand(n){const g=deck.splice(0,Math.min(n,deck.length));g.forEach(c=>c.fresh=true);hand.push(...g)}
+function draw(){
+  if(pending.length||mode||!deck.length)return;
+  pending=deck.splice(0,Math.min(+$("n").value,deck.length));sel=null;render(true);
+}
+function pick(i){
+  if(hand.length<limit){const c=pending[i];c.fresh=true;hand.push(c);discarded+=pending.length-1;pending=[];sel=null}
+  else sel=i;
+  render();
+}
+function swapWith(i){
+  if(sel===null)return;
+  const c=pending[sel];c.fresh=true;hand[i]=c;discarded+=pending.length;pending=[];sel=null;render();
+}
+function removeFromHand(i){hand.splice(i,1);discarded++;render()}
+function discardPending(){discarded+=pending.length;pending=[];sel=null;render()}
+
+function feasible(k,src){
+  if(k==="x1"||FUN.includes(k))return true;
+  if(k==="dup")return hand.some((c,i)=>i!==src&&c.k!=="dup"&&(c.k==="time"||feasible(c.k,src)));
+  return hand.length-1>=POW[k].need;
+}
+function play(i){
+  const c=hand[i];
+  if(pending.length||mode||c.k==="time"||!feasible(c.k,i))return;
+  if(c.k==="dup"){mode={t:"dup",src:i};render()}else begin(c.k,i);
+}
+function begin(k,src){
+  if(k==="x1"){hand.splice(src,1);discarded++;limit++;mode=null;drawToHand(1);render();return}
+  if(FUN.includes(k)){mode={t:"fun",k,src};render();return}
+  mode={t:"disc",src,need:POW[k].need,draw:POW[k].draw,picked:[]};render();
+}
+function togglePick(i){
+  const x=mode.picked.indexOf(i);
+  if(x>=0)mode.picked.splice(x,1);else if(mode.picked.length<mode.need)mode.picked.push(i);
+  render();
+}
+function confirmDisc(){
+  const {src,picked,need,draw}=mode;
+  hand=hand.filter((_,i)=>i!==src&&!picked.includes(i));
+  discarded+=need+1;mode=null;drawToHand(draw);render();
+}
+function validTarget(i){const c=hand[i];return i!==mode.src&&c.k!=="dup"&&(c.k==="time"||feasible(c.k,mode.src))}
+function dupTarget(j){
+  const t=hand[j];
+  if(t.k==="time"){hand[mode.src]={k:"time",m:t.m,copy:true,fresh:true};mode=null;render()}
+  else begin(t.k,mode.src);
+}
+function confirmFun(){
+  const {k,src}=mode,code=String(100000+rand(900000));
+  played.unshift({n:POW[k].name,c:code});
+  if(k==="move"){discarded+=hand.length;hand=[]}else{hand.splice(src,1);discarded++}
+  mode=null;render();
+}
+function cancelMode(){mode=null;render()}
+
+function render(pop){
+  $("remaining").textContent=deck.length+" in deck";
+  $("discarded").textContent=discarded+" discarded";
+  $("deck").style.visibility=deck.length?"visible":"hidden";
+  const busy=pending.length>0||mode!==null;
+  $("draw").disabled=busy||deck.length===0;
+  $("n").disabled=busy;
+
+  const p=$("pending");p.innerHTML="";
+  if(!pending.length){
+    const e=document.createElement("div");e.className="card empty";
+    e.textContent=deck.length?"Drawn cards appear here":"Deck is empty";p.appendChild(e);
+  }
+  pending.forEach((c,i)=>{
+    const b=mkBtn((sel===null?"Keep ":"Choose ")+name(c),()=>pick(i));
+    if(sel===i)b.classList.add("sel");else if(sel!==null)b.classList.add("dim");
+    b.appendChild(cardEl(c,false,pop));p.appendChild(b);
+  });
+
+  const full=hand.length>=limit,a1=$("act1"),a2=$("act2");
+  a1.hidden=a2.hidden=true;a1.disabled=false;
+  let m="";
+  if(mode&&mode.t==="disc"){
+    m="Choose "+mode.need+" other card"+(mode.need>1?"s":"")+" from your hand to discard ("+mode.picked.length+"/"+mode.need+"). Then you draw "+mode.draw+".";
+    a1.hidden=false;a1.textContent="Confirm";a1.disabled=mode.picked.length<mode.need;a1.onclick=confirmDisc;
+    a2.hidden=false;a2.textContent="Cancel";a2.onclick=cancelMode;
+  }else if(mode&&mode.t==="fun"){
+    m="Play "+POW[mode.k].name+"? "+(mode.k==="move"?"This discards your whole hand.":"The card will be removed from your hand.");
+    a1.hidden=false;a1.textContent="Confirm play";a1.onclick=confirmFun;
+    a2.hidden=false;a2.textContent="Cancel";a2.onclick=cancelMode;
+  }else if(mode){
+    m="Choose a card in your hand to copy.";
+    a2.hidden=false;a2.textContent="Cancel";a2.onclick=cancelMode;
+  }else if(!pending.length){
+    m=full?"Your hand is full. Remove a card (×) to make room.":(deck.length?"":"No cards left. Start a new game.");
+  }else if(sel===null){
+    m=pending.length>1?"Pick one card to keep. The rest are discarded.":(full?"Your hand is full. Pick this card to swap it in, or discard it.":"Keep this card, or discard it.");
+    a1.hidden=false;a1.textContent=pending.length>1?"Discard all":"Discard it";a1.onclick=discardPending;
+  }else{
+    m="Hand is full. Click a card in your hand to discard it and keep the new one.";
+    a1.hidden=false;a1.textContent="Discard the new card";a1.onclick=discardPending;
+    a2.hidden=false;a2.textContent="Pick a different card";a2.onclick=()=>{sel=null;render()};
+  }
+  $("msg").textContent=m;
+
+  const mins=hand.reduce((t,c)=>t+(c.k==="time"?c.m:0),0);
+  $("handTitle").textContent="Your hand ("+hand.length+"/"+limit+") · "+mins+" min total";
+  const h=$("hand");h.innerHTML="";
+  for(let i=0;i<limit;i++){
+    const slot=document.createElement("div");slot.className="slot";
+    const c=hand[i];
+    if(!c){const e=document.createElement("div");e.className="card sm empty";e.textContent="Empty";slot.appendChild(e)}
+    else if(mode&&mode.t==="disc"){
+      if(i===mode.src)slot.appendChild(dim(cardEl(c,true)));
+      else{const b=mkBtn("Discard "+name(c),()=>togglePick(i));if(mode.picked.includes(i))b.classList.add("sel");b.appendChild(cardEl(c,true));slot.appendChild(b)}
+    }else if(mode&&mode.t==="fun"){
+      const el=cardEl(c,true);slot.appendChild(i===mode.src||mode.k==="move"?el:dim(el));
+    }else if(mode){
+      if(validTarget(i)){const b=mkBtn("Copy "+name(c),()=>dupTarget(i));b.classList.add("sel");b.appendChild(cardEl(c,true));slot.appendChild(b)}
+      else slot.appendChild(dim(cardEl(c,true)));
+    }else if(sel!==null){
+      const b=mkBtn("Discard "+name(c)+" from hand",()=>swapWith(i));
+      b.classList.add("sel");b.appendChild(cardEl(c,true));slot.appendChild(b);
+    }else{
+      slot.appendChild(cardEl(c,true,c.fresh));
+      const x=document.createElement("button");x.className="rm";x.textContent="×";
+      x.setAttribute("aria-label","Remove "+name(c)+" from hand");x.onclick=()=>removeFromHand(i);
+      slot.appendChild(x);
+      if(c.k!=="time"){
+        const pb=document.createElement("button");pb.className="play";pb.textContent="Play";
+        pb.setAttribute("aria-label","Play "+name(c));
+        const ok=!pending.length&&feasible(c.k,i);pb.disabled=!ok;
+        if(!ok)pb.title=pending.length?"Resolve the cards on the table first":"Not enough other cards in your hand";
+        pb.onclick=()=>play(i);slot.appendChild(pb);
+      }
+    }
+    h.appendChild(slot);
+  }
+  $("playedSec").hidden=!played.length;
+  $("played").innerHTML=played.map(x=>'<div class="pl"><span>'+x.n+'</span><b>'+x.c+'</b></div>').join("");
+  hand.forEach(c=>{delete c.fresh});
+}
+$("draw").onclick=draw;
+$("shuffle").onclick=reset;
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space"&&!["SELECT","BUTTON","INPUT"].includes(document.activeElement.tagName)){e.preventDefault();draw()}
+});
+reset();
+</script>
+<script>
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
+</body>
 </html>
