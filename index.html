@@ -30,6 +30,16 @@ h2{font-size:1rem;font-weight:600;color:var(--muted);margin:0 0 10px}
 .play{display:block;margin:8px auto 0;padding:3px 14px;font-size:.85rem;background:var(--btn);color:var(--btn-ink);border-color:var(--btn);font-weight:700}
 .pl{display:flex;justify-content:space-between;align-items:center;gap:12px;background:rgba(0,0,0,.25);border-radius:8px;padding:8px 14px;margin-bottom:6px}
 .pl b{font:700 1.5rem ui-monospace,Menlo,Consolas,monospace;letter-spacing:.15em;color:var(--btn)}
+.txt{position:absolute;inset:0;padding:.8em;display:flex;flex-direction:column;overflow:hidden;color:#202c3e;text-align:left;font-family:Montserrat,system-ui,Arial,sans-serif}
+.txt h3{margin:0 0 .75em;font-size:.72em;line-height:1.04;font-weight:900;text-transform:uppercase}
+.txt p{margin:0;font-size:.41em;line-height:1.14}
+.txt b{margin-top:auto;padding-top:.6em;font-size:.37em;line-height:1.15;font-weight:800}
+.b{font-style:normal;font-weight:800;background:#ffc800;color:#2a2208;border-radius:.25em;padding:0 .3em}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:50;padding:16px;cursor:pointer}
+#zoom[hidden]{display:none}
+#zoom .card{font-size:min(8.8vw,6vh,38px)}
+.zt{color:var(--muted);font-size:.9rem}
+.zb{display:block;margin:6px auto 0;padding:2px 10px;font-size:.8rem;background:transparent;color:var(--muted);border-color:rgba(241,236,221,.25)}
 .tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
 .card.dimmed{opacity:.4}
 .card svg{position:absolute;inset:0;width:100%;height:100%}
@@ -72,7 +82,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 </head>
 <body>
 <h1>Time bonus cards</h1>
-<p class="sub">76 cards: 55 time bonuses, 12 power cards and 9 just-for-fun cards. Draw up to 5, keep one, hold 6. Play power cards from your hand.</p>
+<p class="sub">94 cards: 55 time bonuses, 12 power cards, 9 just-for-fun cards and 18 curses. Draw up to 5, keep one, hold 6. Play power cards from your hand.</p>
 
 <div class="sec">
   <div class="row" style="align-items:center;gap:28px">
@@ -112,11 +122,37 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 </div>
 <p class="hint">Press Space to draw.</p>
 
+<div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 const DIST=[[2,25],[4,15],[6,10],[8,3],[12,2]];
 const POWERS=[["d1",4],["d2",4],["x1",2],["dup",2],["veto",4],["rand",4],["move",1]];
 const FUN=["veto","rand","move"];
 const POW={d1:{need:1,draw:2,name:"Discard 1, draw 2"},d2:{need:2,draw:3,name:"Discard 2, draw 3"},x1:{name:"Draw 1, expand 1"},dup:{name:"Duplicate another card"},veto:{name:"Veto question"},rand:{name:"Randomize question"},move:{name:"Move"}};
+const v=x=>'<i class="b">'+x+'</i>';
+const CURSES=[
+["troll","Curse of the Bridge Troll","The seekers must ask their next question from under a bridge.",`Seekers must be at least ${v(1)} mile from you.`,"real"],
+["cairn","Curse of the Cairn","You have one attempt to stack as many rocks on top of each other as you can in a freestanding tower. Each rock may only touch one other rock. Once you have added a rock to the tower, it may not be removed. Before adding another rock, the tower must stand for at least five seconds. If at any point, any rock other than the base rock touches the ground, your tower has fallen. Once your tower falls, tell the seekers how many rocks high your tower was when it last stood for five seconds. The seekers must then construct a rock tower of the same number of rocks, under the same parameters, before asking another question. If their tower falls, they must restart. The rocks must be found in nature, and both teams must disperse the rocks after building.","Build a rock tower.","real"],
+["cuisine","Curse of the Distant Cuisine","Find a restaurant within your zone that explicitly serves food from a specific foreign country. The seekers must visit a restaurant serving food from a country that is an equal or greater distance away before asking another question.","You must be at the restaurant.","real"],
+["brain","Curse of the Drained Brain","Choose three questions in different categories. The seekers cannot ask those questions for the rest of your run.","Discard your hand.","hand"],
+["gambler","Curse of the Gambler's Feet",`For the next ${v(20)} minutes, seekers must roll a die before they take any steps in any direction. They may take that many steps before rolling again.`,"Roll a die. If it's an even number, this curse has no effect.","real"],
+["hangman","Curse of the Hidden Hangman",`Before asking another question or boarding another form of transportation, seekers must beat the hider in a game of hangman. To play, the hider chooses a 5 letter word, and the game ends after either a correct word guess or 7 wrong letter guesses (head, body, two arms, two legs, and a hat). The hider must respond to all queries within 30 seconds. The seekers cannot challenge the hider for 10 minutes after a loss. After ${v(1)} loss, the seekers must wait 10 more minutes and then the curse is cleared.`,"Discard 2 cards.",{d:2}],
+["jammed","Curse of the Jammed Door",`For the next ${v(0.5)} hours, whenever the seekers want to pass through a doorway into a building, business, train, or other vehicle, they must first roll 2 dice. If they do not roll a 7 or higher, they cannot enter that space (including through other doorways.) Any given doorway can be re-attempted after ${v(5)} minutes.`,"Discard two cards.",{d:2}],
+["labyrinth","Curse of the Labyrinth",`Spend up to ${v(10)} minutes drawing a solvable maze and send a photo of it to the seekers. You cannot use the internet to research maze designs. The seekers must solve the maze before asking another question.`,"Draw a maze.","real"],
+["luxury","Curse of the Luxury Car","Take a photo of a car. The seekers must take a photo of a more expensive car before asking another question.","A photo of a car.","real"],
+["travel","Curse of the Mediocre Travel Agent",`Choose any publicly-accessible place within ${v(0.25)} miles of the seekers' current location. They cannot currently be on transit. They must go there, and spend at least ${v(5)} minutes there, before asking another question. They must send you at least three photos of them enjoying their vacation, and procure an object to bring you as a souvenir. If this souvenir is lost before they can give it to you, you are awarded an extra ${v(30)} minutes.`,"Their vacation destination must be further from you than their current location.","real"],
+["tourist","Curse of the Unguided Tourist","Send the seekers an unzoomed Google Street View image from a street within 500 feet of where they are now. The shot has to be parallel to the horizon and include at least one human-built structure other than a road. Without using the internet for research, they must find what you sent them in real life before they can use transportation or ask another question. They must send a picture to the hider for verification.","Seekers must be outside.","real"],
+["bird","Curse of the Bird Guide",`You have one chance to film a bird for as long as possible, up to ${v(5)} minutes straight. If, at any point, the bird leaves the frame, your timer is stopped. The seekers must then film a bird for the same amount of time or longer before asking another question.`,"Film a bird.","real"],
+["ransom","Curse of the Ransom Note","The next question that the seekers ask must be composed of words and letters cut out of any printed material. The question must be coherent, and include at least 5 words.",'Spell out "ransom note" as a ransom note (without using this card).',"real"],
+["turn","Curse of the Right Turn",`For the next ${v(20)} minutes, the seekers can only turn right at any street intersection. If, at any point, they find themselves in a dead end where they cannot continue forward or turn right for another 1,000 feet, they may do a full 180. A right turn is defined as a road at any angle that veers to the right of the seekers.`,"Discard a card.",{d:1}],
+["memory","Curse of Spotty Memory","For the rest of your run, one random category of questions will be disabled at all times. After this curse is played, seekers must roll a die to determine the category of questions to be disabled. This category remains disabled until the next question is asked, at which point a die is rolled again to choose a new category. The same category can be disabled multiple times in a row.","Discard a time bonus.",{tb:1}],
+["explorer","Curse of the Urban Explorer","For the rest of your run, seekers cannot ask questions when they are on transit or in a transit station.","Discard 2 cards.",{d:2}],
+["uturn","Curse of the U-Turn",`The seekers must disembark their current mode of transportation at the next station (as long as that station is serviced by another form of transit in the next ${v(0.5)} hours.)`,"Seekers must be heading the wrong way. (Their next station is further from you than they are.)","real"],
+["zoologist","Curse of the Zoologist","Take a photo of a wild fish, bird, mammal, reptile, amphibian, or bug. The seekers must take a picture of a wild animal in the same category before asking another question.","A photo of an animal.","real"]
+];
+const CURSE={};
+for(const [k,t,b,c,r] of CURSES){CURSE[k]={t,b,c,r};POW[k]={name:t}}
+const plain=h=>h.replace(/<[^>]+>/g,"");
+const newCode=()=>String(100000+rand(900000));
 const COL={2:"#ff1a00",4:"#ff8c00",6:"#ffc800",8:"#22aa22",12:"#2d88f5"};
 const DARK="#202c3e",YEL="#ffc800";
 const FONT='font-family="Montserrat,\'Arial Black\',Arial,sans-serif"';
@@ -127,6 +163,7 @@ function build(){
   const d=[];
   for(const [m,n] of DIST)for(let i=0;i<n;i++)d.push({k:"time",m});
   for(const [k,n] of POWERS)for(let i=0;i<n;i++)d.push({k});
+  for(const k in CURSE)d.push({k});
   return d;
 }
 function rand(n){const a=new Uint32Array(1),lim=Math.floor(4294967296/n)*n;let x;do{crypto.getRandomValues(a);x=a[0]}while(x>=lim);return x%n}
@@ -193,7 +230,8 @@ function cardEl(c,small,pop){
   const el=document.createElement("div");
   el.className="card"+(small?" sm":"")+(pop?" pop":"");
   el.setAttribute("aria-label",name(c)+(c.copy?" (copy)":""));
-  el.innerHTML='<svg viewBox="0 0 750 1050" aria-hidden="true">'+(c.k==="time"?timeFace(c.m):powerFace(c.k))+'</svg>'+(c.copy?'<span class="tag">copy</span>':"");
+  const cu=CURSE[c.k];
+  el.innerHTML=(cu?'<div class="txt"><h3>'+cu.t+'</h3><p>'+cu.b+'</p><b>Casting cost: '+cu.c+'</b></div>':'<svg viewBox="0 0 750 1050" aria-hidden="true">'+(c.k==="time"?timeFace(c.m):powerFace(c.k))+'</svg>')+(c.copy?'<span class="tag">copy</span>':"");
   return el;
 }
 function mkBtn(label,fn){const b=document.createElement("button");b.className="cardbtn";b.setAttribute("aria-label",label);b.onclick=fn;return b}
@@ -220,6 +258,7 @@ function discardPending(){discarded+=pending.length;pending=[];sel=null;render()
 
 function feasible(k,src){
   if(k==="x1"||FUN.includes(k))return true;
+  if(CURSE[k]){const r=CURSE[k].r;if(r.d)return hand.length-1>=r.d;if(r.tb)return hand.some((c,i)=>i!==src&&c.k==="time");return true}
   if(k==="dup")return hand.some((c,i)=>i!==src&&c.k!=="dup"&&(c.k==="time"||feasible(c.k,src)));
   return hand.length-1>=POW[k].need;
 }
@@ -231,17 +270,22 @@ function play(i){
 function begin(k,src){
   if(k==="x1"){hand.splice(src,1);discarded++;limit++;mode=null;drawToHand(1);render();return}
   if(FUN.includes(k)){mode={t:"fun",k,src};render();return}
+  if(CURSE[k]){const r=CURSE[k].r;
+    mode=(r.d||r.tb)?{t:"disc",src,need:r.d||r.tb,draw:0,pool:r.tb?"time":null,curse:k,picked:[]}:{t:"fun",k,src};
+    render();return}
   mode={t:"disc",src,need:POW[k].need,draw:POW[k].draw,picked:[]};render();
 }
 function togglePick(i){
   const x=mode.picked.indexOf(i);
-  if(x>=0)mode.picked.splice(x,1);else if(mode.picked.length<mode.need)mode.picked.push(i);
+  if(x>=0)mode.picked.splice(x,1);else if(mode.picked.length<mode.need&&(!mode.pool||hand[i].k==="time"))mode.picked.push(i);
   render();
 }
 function confirmDisc(){
-  const {src,picked,need,draw}=mode;
+  const {src,picked,need,draw,curse}=mode;
   hand=hand.filter((_,i)=>i!==src&&!picked.includes(i));
-  discarded+=need+1;mode=null;drawToHand(draw);render();
+  discarded+=need+1;
+  if(curse)played.unshift({n:POW[curse].name,c:newCode()});
+  mode=null;if(draw)drawToHand(draw);render();
 }
 function validTarget(i){const c=hand[i];return i!==mode.src&&c.k!=="dup"&&(c.k==="time"||feasible(c.k,mode.src))}
 function dupTarget(j){
@@ -250,9 +294,9 @@ function dupTarget(j){
   else begin(t.k,mode.src);
 }
 function confirmFun(){
-  const {k,src}=mode,code=String(100000+rand(900000));
+  const {k,src}=mode,code=newCode(),all=k==="move"||(CURSE[k]&&CURSE[k].r==="hand");
   played.unshift({n:POW[k].name,c:code});
-  if(k==="move"){discarded+=hand.length;hand=[]}else{hand.splice(src,1);discarded++}
+  if(all){discarded+=hand.length;hand=[]}else{hand.splice(src,1);discarded++}
   mode=null;render();
 }
 function cancelMode(){mode=null;render()}
@@ -273,18 +317,22 @@ function render(pop){
   pending.forEach((c,i)=>{
     const b=mkBtn((sel===null?"Keep ":"Choose ")+name(c),()=>pick(i));
     if(sel===i)b.classList.add("sel");else if(sel!==null)b.classList.add("dim");
-    b.appendChild(cardEl(c,false,pop));p.appendChild(b);
+    b.appendChild(cardEl(c,false,pop));
+    const w=document.createElement("div");w.appendChild(b);
+    const z=document.createElement("button");z.className="zb";z.textContent="Enlarge";z.onclick=()=>zoom(c);
+    w.appendChild(z);p.appendChild(w);
   });
 
   const full=hand.length>=limit,a1=$("act1"),a2=$("act2");
   a1.hidden=a2.hidden=true;a1.disabled=false;
   let m="";
   if(mode&&mode.t==="disc"){
-    m="Choose "+mode.need+" other card"+(mode.need>1?"s":"")+" from your hand to discard ("+mode.picked.length+"/"+mode.need+"). Then you draw "+mode.draw+".";
-    a1.hidden=false;a1.textContent="Confirm";a1.disabled=mode.picked.length<mode.need;a1.onclick=confirmDisc;
+    m=(mode.curse?"Casting cost: discard ":"Choose ")+mode.need+" other "+(mode.pool?"time bonus card":"card")+(mode.need>1?"s":"")+(mode.curse?"":" from your hand to discard")+" ("+mode.picked.length+"/"+mode.need+")."+(mode.draw?" Then you draw "+mode.draw+".":"");
+    a1.hidden=false;a1.textContent=mode.curse?"Confirm play":"Confirm";a1.disabled=mode.picked.length<mode.need;a1.onclick=confirmDisc;
     a2.hidden=false;a2.textContent="Cancel";a2.onclick=cancelMode;
   }else if(mode&&mode.t==="fun"){
-    m="Play "+POW[mode.k].name+"? "+(mode.k==="move"?"This discards your whole hand.":"The card will be removed from your hand.");
+    const cu=CURSE[mode.k];
+    m="Play "+POW[mode.k].name+"? "+(cu?(cu.r==="hand"?"Casting cost: discard your whole hand.":"Casting cost: "+plain(cu.c)+" Confirm you've met it."):mode.k==="move"?"This discards your whole hand.":"The card will be removed from your hand.");
     a1.hidden=false;a1.textContent="Confirm play";a1.onclick=confirmFun;
     a2.hidden=false;a2.textContent="Cancel";a2.onclick=cancelMode;
   }else if(mode){
@@ -310,10 +358,10 @@ function render(pop){
     const c=hand[i];
     if(!c){const e=document.createElement("div");e.className="card sm empty";e.textContent="Empty";slot.appendChild(e)}
     else if(mode&&mode.t==="disc"){
-      if(i===mode.src)slot.appendChild(dim(cardEl(c,true)));
+      if(i===mode.src||(mode.pool&&c.k!=="time"))slot.appendChild(dim(cardEl(c,true)));
       else{const b=mkBtn("Discard "+name(c),()=>togglePick(i));if(mode.picked.includes(i))b.classList.add("sel");b.appendChild(cardEl(c,true));slot.appendChild(b)}
     }else if(mode&&mode.t==="fun"){
-      const el=cardEl(c,true);slot.appendChild(i===mode.src||mode.k==="move"?el:dim(el));
+      const el=cardEl(c,true);slot.appendChild(i===mode.src||mode.k==="move"||(CURSE[mode.k]&&CURSE[mode.k].r==="hand")?el:dim(el));
     }else if(mode){
       if(validTarget(i)){const b=mkBtn("Copy "+name(c),()=>dupTarget(i));b.classList.add("sel");b.appendChild(cardEl(c,true));slot.appendChild(b)}
       else slot.appendChild(dim(cardEl(c,true)));
@@ -321,7 +369,7 @@ function render(pop){
       const b=mkBtn("Discard "+name(c)+" from hand",()=>swapWith(i));
       b.classList.add("sel");b.appendChild(cardEl(c,true));slot.appendChild(b);
     }else{
-      slot.appendChild(cardEl(c,true,c.fresh));
+      const vb=mkBtn("Enlarge "+name(c),()=>zoom(c));vb.appendChild(cardEl(c,true,c.fresh));slot.appendChild(vb);
       const x=document.createElement("button");x.className="rm";x.textContent="×";
       x.setAttribute("aria-label","Remove "+name(c)+" from hand");x.onclick=()=>removeFromHand(i);
       slot.appendChild(x);
@@ -339,6 +387,12 @@ function render(pop){
   $("played").innerHTML=played.map(x=>'<div class="pl"><span>'+x.n+'</span><b>'+x.c+'</b></div>').join("");
   hand.forEach(c=>{delete c.fresh});
 }
+function zoom(c){
+  const z=$("zoom");z.innerHTML="";z.appendChild(cardEl(c,false));
+  const t=document.createElement("div");t.className="zt";t.textContent="Tap anywhere to close";z.appendChild(t);z.hidden=false;
+}
+$("zoom").onclick=()=>{$("zoom").hidden=true};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")$("zoom").hidden=true});
 $("draw").onclick=draw;
 $("shuffle").onclick=reset;
 document.addEventListener("keydown",e=>{
