@@ -43,6 +43,30 @@ h2{font-size:1rem;font-weight:600;color:var(--muted);margin:0 0 10px}
 #zoom .zt{max-width:92vw;text-align:center}
 .zt{color:var(--muted);font-size:.9rem}
 .zb{display:block;margin:6px auto 0;padding:2px 10px;font-size:.8rem;background:transparent;color:var(--muted);border-color:rgba(241,236,221,.25)}
+.pl{width:100%;border:0;color:inherit;font:inherit;cursor:pointer;text-align:left}
+input{font:inherit;border-radius:8px;border:1px solid rgba(241,236,221,.4);padding:10px 12px;background:transparent;color:var(--text);min-width:0}
+input::placeholder{color:var(--muted)}
+#fx{position:fixed;inset:0;background:radial-gradient(circle at 50% 40%,rgba(58,54,28,.96),rgba(6,14,10,.98));display:flex;align-items:center;justify-content:center;z-index:60;overflow:auto;padding:16px}
+#fx[hidden]{display:none}
+#sp{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.fxbox{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;margin:auto}
+.fxbox .card{font-size:min(8vw,calc((100vh - 300px)/14),34px);animation:fxin .8s cubic-bezier(.2,1.4,.4,1);box-shadow:0 0 40px rgba(233,196,106,.55),0 8px 24px rgba(0,0,0,.5)}
+@keyframes fxin{from{transform:scale(.3) rotate(-10deg);opacity:0}to{transform:none;opacity:1}}
+.fxlab{color:var(--text);font-size:1.05rem;text-align:center}
+.fxcode{font:700 2.1rem ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2em;color:var(--btn)}
+.sparkle{position:absolute;color:#ffe9a8;text-shadow:0 0 8px #e9c46a;animation:spark var(--d) ease-out var(--dl) both}
+@keyframes spark{0%{transform:translate(0,0) scale(0) rotate(0);opacity:0}25%{opacity:1}100%{transform:translate(var(--x),var(--y)) scale(1) rotate(200deg);opacity:0}}
+.twinkle{animation:tw 1.8s ease-in-out var(--dl) infinite;opacity:0}
+@keyframes tw{0%,100%{opacity:0;transform:scale(.3)}50%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.sparkle{display:none}.fxbox .card{animation:none}}
+[hidden]{display:none!important}
+#game{display:flex;flex-direction:column;align-items:center;width:100%}
+.home{min-height:85vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;width:100%;max-width:420px}
+.home .sub{margin:0 0 6px}
+.home input{width:100%;font-size:1.1rem;padding:14px;text-align:center}
+.big{width:100%;font-size:1.15rem;padding:16px}
+.logo{font-size:3.4rem}
+.who{margin:0 0 6px;color:var(--btn);font-size:.95rem}
 .tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
 .card.dimmed{opacity:.4}
 .card svg{position:absolute;inset:0;width:100%;height:100%}
@@ -84,7 +108,26 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 </style>
 </head>
 <body>
+<main id="home" class="home">
+  <div class="logo" aria-hidden="true">⏱️</div>
+  <h1>Time bonus cards</h1>
+  <p class="sub">Who are you playing as?</p>
+  <input id="player" placeholder="Your name" maxlength="24" aria-label="Your name" autocomplete="off">
+  <button class="primary big" id="goHider">Play as hider</button>
+  <button class="ghost big" id="goSeeker">Play as seeker</button>
+</main>
+
+<main id="seeker" class="home" hidden>
+  <div class="logo" aria-hidden="true">🔍</div>
+  <h1>Seeker</h1>
+  <p class="sub">Seeker tools are coming soon.</p>
+  <button class="ghost big" id="seekerBack">Back</button>
+</main>
+
+<main id="game" hidden>
+<button class="ghost" id="goHome" style="align-self:flex-start;margin-bottom:10px">← Home</button>
 <h1>Time bonus cards</h1>
+<p class="who" id="who"></p>
 <p class="sub">95 cards: 55 time bonuses, 12 power cards, 9 just-for-fun cards and 19 curses. Draw up to 5, keep one, hold 6. Tap any card to enlarge it and see its options.</p>
 
 <div class="sec">
@@ -125,6 +168,9 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 </div>
 <p class="hint">Press Space to draw.</p>
 
+</main>
+
+<div id="fx" hidden role="dialog" aria-modal="true" aria-label="Card played"><div id="sp"></div><div class="fxbox" id="fxbox"></div></div>
 <div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 const DIST=[[2,25],[4,15],[6,10],[8,3],[12,2]];
@@ -156,7 +202,8 @@ const CURSES=[
 const CURSE={};
 for(const [k,t,b,c,r] of CURSES){CURSE[k]={t,b,c,r};POW[k]={name:t}}
 const plain=h=>h.replace(/<[^>]+>/g,"");
-const newCode=()=>String(100000+rand(900000));
+const CODE_SUM=25;
+function newCode(){let c;do{c=String(100000+rand(900000))}while([...c].reduce((t,d)=>t+ +d,0)!==CODE_SUM);return c}
 const COL={2:"#ff1a00",4:"#ff8c00",6:"#ffc800",8:"#22aa22",12:"#2d88f5"};
 const DARK="#202c3e",YEL="#ffc800";
 const FONT='font-family="Montserrat,\'Arial Black\',Arial,sans-serif"';
@@ -272,12 +319,12 @@ function play(i){
   if(c.k==="dup"){mode={t:"dup",src:i};render()}else begin(c.k,i);
 }
 function begin(k,src){
-  if(k==="x1"){hand.splice(src,1);discarded++;limit++;mode=null;drawToHand(1);render();return}
+  if(k==="x1"){hand.splice(src,1);discarded++;limit++;mode=null;drawToHand(1);render();celebrate(mkEntry("x1"));return}
   if(FUN.includes(k)){mode={t:"fun",k,src};render();return}
   if(CURSE[k]){const r=CURSE[k].r;
     mode=(r.d||r.tb)?{t:"disc",src,need:r.d||r.tb,draw:0,pool:r.tb?"time":null,curse:k,picked:[]}:{t:"fun",k,src};
     render();return}
-  mode={t:"disc",src,need:POW[k].need,draw:POW[k].draw,picked:[]};render();
+  mode={t:"disc",k,src,need:POW[k].need,draw:POW[k].draw,picked:[]};render();
 }
 function togglePick(i){
   const x=mode.picked.indexOf(i);
@@ -285,11 +332,12 @@ function togglePick(i){
   render();
 }
 function confirmDisc(){
-  const {src,picked,need,draw,curse}=mode;
+  const {src,picked,need,draw,curse,k}=mode;
   hand=hand.filter((_,i)=>i!==src&&!picked.includes(i));
   discarded+=need+1;
-  if(curse)played.unshift({n:POW[curse].name,c:newCode()});
-  mode=null;if(draw)drawToHand(draw);render();
+  const e=mkEntry(curse||k,curse?newCode():"");
+  if(curse)played.unshift(e);
+  mode=null;if(draw)drawToHand(draw);render();celebrate(e);
 }
 function validTarget(i){const c=hand[i];return i!==mode.src&&c.k!=="dup"&&(c.k==="time"||feasible(c.k,mode.src))}
 function dupTarget(j){
@@ -298,10 +346,10 @@ function dupTarget(j){
   else begin(t.k,mode.src);
 }
 function confirmFun(){
-  const {k,src}=mode,code=newCode(),all=k==="move"||(CURSE[k]&&CURSE[k].r==="hand");
-  played.unshift({n:POW[k].name,c:code});
+  const {k,src}=mode,code=newCode(),e=mkEntry(k,code),all=k==="move"||(CURSE[k]&&CURSE[k].r==="hand");
+  played.unshift(e);
   if(all){discarded+=hand.length;hand=[]}else{hand.splice(src,1);discarded++}
-  mode=null;render();
+  mode=null;render();celebrate(e);
 }
 function cancelMode(){mode=null;render()}
 
@@ -372,7 +420,7 @@ function render(pop){
     h.appendChild(slot);
   }
   $("playedSec").hidden=!played.length;
-  $("played").innerHTML=played.map(x=>'<div class="pl"><span>'+x.n+'</span><b>'+x.c+'</b></div>').join("");
+  $("played").innerHTML=played.map((x,i)=>'<button class="pl" data-i="'+i+'" aria-label="Show and share '+x.n+'"><span>'+x.n+'</span><b>'+x.code+'</b></button>').join("");
   hand.forEach(c=>{delete c.fresh});
 }
 function pendingActions(c,i){
@@ -414,13 +462,154 @@ function openCard(c,o){
 }
 function closeZoom(){$("zoom").hidden=true}
 $("zoom").onclick=e=>{if(e.target===$("zoom"))closeZoom()};
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeZoom()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeZoom();closeFx()}});
+/* ---------- celebrate + share ---------- */
+const player=()=>($("player").value||"").trim();
+const mkEntry=(k,code)=>({n:POW[k].name,code:code||"",card:{k},t:Date.now(),p:player()});
+const b64e=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const b64d=t=>{t=t.replace(/-/g,"+").replace(/_/g,"/");while(t.length%4)t+="=";return JSON.parse(decodeURIComponent(escape(atob(t))))};
+const linkOK=()=>/^https?:$/.test(location.protocol);
+const linkFor=e=>location.href.split("#")[0]+"#played="+b64e({k:e.card.k,c:e.code,t:e.t,p:e.p});
+const shareText=e=>(e.p?e.p+" played ":"I played ")+e.n+(e.code?" - code "+e.code:"")+".";
+
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath()}
+function runs(h){
+  const out=[];
+  h.split(/(<i class="b">[^<]*<\/i>)/).forEach(p=>{
+    const m=p.match(/^<i class="b">([^<]*)<\/i>$/);
+    if(m)out.push({t:m[1],b:true});else p.split(/\s+/).forEach(w=>{if(w)out.push({t:w})});
+  });
+  return out;
+}
+function layout(x,rs,W,font,pad){
+  x.font=font;const sp=x.measureText(" ").width,lines=[];let cur=[],w=0;
+  for(const r of rs){
+    const rw=x.measureText(r.t).width+(r.b?pad*2:0);
+    if(cur.length&&w+sp+rw>W){lines.push(cur);cur=[];w=0}
+    w+=(cur.length?sp:0)+rw;cur.push({...r,w:rw});
+  }
+  if(cur.length)lines.push(cur);
+  return {lines,sp};
+}
+function drawLines(x,L,x0,y0,lh,font,fs,pad){
+  x.font=font;x.textAlign="left";let y=y0;
+  for(const line of L.lines){
+    let px=x0;
+    for(const it of line){
+      if(it.b){x.fillStyle=YEL;rr(x,px,y-fs*.84,it.w,fs*1.14,fs*.22);x.fill();x.fillStyle="#2a2208";x.fillText(it.t,px+pad,y);x.fillStyle=DARK}
+      else x.fillText(it.t,px,y);
+      px+=it.w+L.sp;
+    }
+    y+=lh;
+  }
+  return y;
+}
+function drawCurse(x,cu){
+  const P=60,W=630;
+  x.fillStyle=DARK;
+  const tf="900 54px Montserrat,'Arial Black',Arial,sans-serif",cf="800 40px Montserrat,Arial,sans-serif";
+  let y=drawLines(x,layout(x,runs(cu.t.toUpperCase()),W,tf,0),P,P+48,56,tf,54,0)+24;
+  const C=layout(x,runs("Casting cost: "+cu.c),W,cf,8),costTop=1050-P-(C.lines.length-1)*48-6;
+  let fs=34,B,bf;
+  for(;fs>=20;fs--){bf="400 "+fs+"px Montserrat,Arial,sans-serif";B=layout(x,runs(cu.b),W,bf,fs*.3);if(y+B.lines.length*fs*1.22<=costTop-50)break}
+  drawLines(x,B,P,y+fs,fs*1.22,bf,fs,fs*.3);
+  drawLines(x,C,P,costTop,48,cf,40,8);
+}
+function makeImage(e){
+  return new Promise((res,rej)=>{
+    const W=810,H=1420,cv=document.createElement("canvas");cv.width=W;cv.height=H;
+    const x=cv.getContext("2d");
+    const g=x.createRadialGradient(W/2,420,60,W/2,H/2,H);g.addColorStop(0,"#26634c");g.addColorStop(1,"#0f2a1e");
+    x.fillStyle=g;x.fillRect(0,0,W,H);
+    x.fillStyle="#e9c46a";x.textAlign="center";x.font="44px Arial,sans-serif";
+    [[70,90],[745,140],[60,600],[752,720],[90,1090],[728,1060]].forEach(([a,b],i)=>x.fillText(i%2?"✦":"✧",a,b));
+    rr(x,30,30,750,1050,48);x.fillStyle="#fff";x.fill();
+    const done=()=>{
+      x.textAlign="center";x.fillStyle="#f1ecdd";
+      const label=(e.p?e.p+" played ":"Played ")+e.n;
+      let fs=44;do{x.font="700 "+fs+"px Georgia,serif";fs-=2}while(x.measureText(label).width>740&&fs>22);
+      x.fillText(label,W/2,1160);
+      if(e.code){x.fillStyle="#e9c46a";x.font="700 130px ui-monospace,Menlo,Consolas,monospace";x.fillText(e.code.slice(0,3)+" "+e.code.slice(3),W/2,1290)}
+      x.fillStyle="#a9c2b5";x.font="30px Georgia,serif";x.fillText(new Date(e.t).toLocaleString(),W/2,1360);
+      cv.toBlob(b=>b?res(b):rej(new Error("no image")),"image/png");
+    };
+    const k=e.card.k;
+    if(CURSE[k]){x.save();x.translate(30,30);drawCurse(x,CURSE[k]);x.restore();done()}
+    else{
+      const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 1050" width="750" height="1050">'+powerFace(k)+'</svg>';
+      const img=new Image();img.onload=()=>{x.drawImage(img,30,30,750,1050);done()};img.onerror=rej;
+      img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
+    }
+  });
+}
+const getImg=e=>e.imgP||(e.imgP=makeImage(e));
+const fname=e=>"card-"+(e.code||e.card.k)+".png";
+async function shareEntry(e){
+  const txt=shareText(e)+(linkOK()?" "+linkFor(e):"");
+  try{
+    const file=new File([await getImg(e)],fname(e),{type:"image/png"});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({text:txt,files:[file]});return}
+    if(navigator.share){await navigator.share({text:txt});return}
+  }catch(err){if(err&&err.name==="AbortError")return}
+  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+}
+async function saveImage(e){
+  const a=document.createElement("a");a.href=URL.createObjectURL(await getImg(e));a.download=fname(e);
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+function sparkles(host){
+  const ch=["✦","✧","★"];
+  for(let i=0;i<40;i++){
+    const s=document.createElement("span"),a=Math.random()*Math.PI*2,r=90+Math.random()*200,tw=i>=30;
+    s.className="sparkle"+(tw?" twinkle":"");s.textContent=ch[i%3];
+    s.style.cssText="left:"+(tw?(8+Math.random()*84)+"%":"50%")+";top:"+(tw?(8+Math.random()*80)+"%":"44%")+";font-size:"+(10+Math.random()*22)+"px;--x:"+Math.round(Math.cos(a)*r)+"px;--y:"+Math.round(Math.sin(a)*r)+"px;--d:"+(1.1+Math.random()*1.2)+"s;--dl:"+(tw?Math.random()*1.8:Math.random()*.8)+"s";
+    host.appendChild(s);
+  }
+}
+function celebrate(e,viewer){
+  const box=$("fxbox");box.innerHTML="";$("sp").innerHTML="";
+  const add=(cls,txt)=>{const d=document.createElement("div");d.className=cls;d.textContent=txt;box.appendChild(d);return d};
+  add("fxlab",viewer?((e.p||"Someone")+" played"):(e.p?e.p+" played":"You played"));
+  box.appendChild(cardEl(e.card,false));
+  if(e.code)add("fxcode",e.code.slice(0,3)+" "+e.code.slice(3));
+  add("zt",new Date(e.t).toLocaleString());
+  if(viewer)add("zt","This came from a shared link. Anyone can make one, so check the code with the player.");
+  const row=document.createElement("div");row.className="za";
+  const btn=(label,cls,fn)=>{const b=document.createElement("button");b.textContent=label;b.className=cls;b.onclick=()=>fn(b);row.appendChild(b)};
+  if(!viewer){
+    getImg(e).catch(()=>{});
+    btn("Share","primary",()=>shareEntry(e));
+    btn("Save image","ghost",()=>saveImage(e));
+    if(linkOK())btn("Copy link","ghost",b=>{const l=linkFor(e);(navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(()=>{b.textContent="Link copied!"}).catch(()=>{window.prompt("Copy this link:",l)})});
+  }
+  btn(viewer?"Open the app":"Close","ghost",closeFx);
+  box.appendChild(row);
+  $("fx").hidden=false;sparkles($("sp"));
+}
+function closeFx(){$("fx").hidden=true}
+$("fx").onclick=e=>{if(e.target===$("fx"))closeFx()};
+$("played").onclick=e=>{const b=e.target.closest&&e.target.closest(".pl");if(b)celebrate(played[+b.dataset.i])};
+function initShare(){
+  try{$("player").value=localStorage.getItem("bc_player")||""}catch(_){}
+  $("player").oninput=()=>{try{localStorage.setItem("bc_player",$("player").value)}catch(_){}};
+  const m=location.hash.match(/^#played=(.+)$/);
+  if(m){try{const o=b64d(m[1]);if(POW[o.k])celebrate({card:{k:o.k},n:POW[o.k].name,code:o.c||"",t:o.t||Date.now(),p:o.p||""},true)}catch(_){}}
+}
+function show(id){
+  for(const n of ["home","game","seeker"])$(n).hidden=n!==id;
+  $("who").textContent="Playing as hider"+(player()?" · "+player():"");
+  window.scrollTo(0,0);
+}
+$("goHider").onclick=()=>show("game");
+$("goSeeker").onclick=()=>show("seeker");
+$("goHome").onclick=()=>show("home");
+$("seekerBack").onclick=()=>show("home");
 $("draw").onclick=draw;
 $("shuffle").onclick=reset;
 document.addEventListener("keydown",e=>{
-  if(e.code==="Space"&&!["SELECT","BUTTON","INPUT"].includes(document.activeElement.tagName)){e.preventDefault();draw()}
+  if(e.code==="Space"&&!$("game").hidden&&!["SELECT","BUTTON","INPUT"].includes(document.activeElement.tagName)){e.preventDefault();draw()}
 });
-reset();
+reset();initShare();
 </script>
 <script>
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
