@@ -80,11 +80,12 @@ input::placeholder{color:var(--muted)}
 .mapctl{position:absolute;z-index:2;top:10px;right:10px;display:flex;flex-direction:column;gap:6px}
 .mapctl button{width:42px;height:42px;padding:0;font-size:1.3rem;background:#fff;color:#222;border:1px solid #bbb}
 .mapat{position:absolute;z-index:2;right:0;bottom:0;background:rgba(255,255,255,.82);color:#333;font:11px Arial,sans-serif;padding:2px 6px;text-decoration:none}
-.mapbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0 2px;width:100%;max-width:760px}
+.mapbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;margin:12px 0 2px;width:100%;max-width:760px}
 .mapbar button{padding:8px 12px;font-size:.9rem}
-.mapbar .drawmsg{width:100%;text-align:center;color:var(--btn);font-size:.95rem}
-#zoom textarea{width:min(92vw,520px);height:170px;border-radius:8px;border:1px solid rgba(241,236,221,.4);background:rgba(0,0,0,.35);color:var(--text);font:13px ui-monospace,Menlo,Consolas,monospace;padding:10px;cursor:text}
-#zoom input[type=file]{color:var(--muted);font-size:.85rem;cursor:pointer}
+.mapbar .drawmsg{width:100%;text-align:center;color:var(--btn);font-size:.9rem}
+.mapbar .sw{width:34px;height:34px;border-radius:50%;padding:0;border:2px solid #fff}
+.mapbar .sw.on{outline:3px solid var(--btn);outline-offset:2px}
+#mapBox.inking{cursor:crosshair}
 .tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
 .card.dimmed{opacity:.4}
 .card svg{position:absolute;inset:0;width:100%;height:100%}
@@ -196,22 +197,17 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="mapView" class="view" hidden>
   <div id="mapBox" aria-label="Map of Trenčín">
     <div id="mapTiles"></div>
-    <svg id="mapSvg"><path id="mapMask" fill="rgba(8,24,16,.5)" fill-rule="evenodd"/><path id="mapLine" fill="none" stroke="#ff3d2e" stroke-width="3" stroke-linejoin="round"/><path id="mapDraw" fill="rgba(233,196,106,.28)" stroke="#e9c46a" stroke-width="3" stroke-dasharray="8 6" stroke-linejoin="round"/><g id="mapPts" fill="#e9c46a" stroke="#2a2208" stroke-width="2"></g></svg>
+    <svg id="mapSvg"><path id="mapMask" fill="rgba(8,24,16,.5)" fill-rule="evenodd"/><path id="mapLine" fill="none" stroke="#ff3d2e" stroke-width="3" stroke-linejoin="round"/><g id="mapInk" fill="none" stroke-linecap="round" stroke-linejoin="round"></g></svg>
     <div class="mapctl"><button id="mZin" aria-label="Zoom in">+</button><button id="mZout" aria-label="Zoom out">−</button><button id="mFit" aria-label="Show the whole playing area">⌖</button></div>
     <a class="mapat" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
   </div>
-  <div class="mapbar" id="mapTools">
-    <button class="ghost" id="bEdit">Draw border</button>
-    <button class="ghost" id="bImport">Import</button>
-    <button class="ghost" id="bShare" hidden>Share border</button>
-    <button class="ghost" id="bReset" hidden>Reset border</button>
-  </div>
+  <div class="mapbar" id="mapTools"><button class="ghost" id="bDraw">✏️ Draw on map</button></div>
   <div class="mapbar" id="drawBar" hidden>
-    <div class="drawmsg" id="drawMsg"></div>
+    <div class="drawmsg">One finger draws. Two fingers move and zoom the map.</div>
+    <span id="swatches" style="display:flex;gap:8px"></span>
     <button class="ghost" id="dUndo">Undo</button>
-    <button class="ghost" id="dClear">Clear</button>
-    <button class="primary" id="dSave" style="padding:8px 18px;font-size:.95rem">Save border</button>
-    <button class="ghost" id="dCancel">Cancel</button>
+    <button class="ghost" id="dClear">Clear all</button>
+    <button class="primary" id="dDone" style="padding:8px 18px;font-size:.95rem">Done</button>
   </div>
   <p class="sub" id="mapNote"></p>
 </div>
@@ -640,8 +636,6 @@ $("played").onclick=e=>{const b=e.target.closest&&e.target.closest(".pl");if(b)c
 function initShare(){
   try{$("player").value=localStorage.getItem("bc_player")||""}catch(_){}
   $("player").oninput=()=>{try{localStorage.setItem("bc_player",$("player").value)}catch(_){}};
-  const bm=location.hash.match(/^#border=(.+)$/);
-  if(bm){try{const p=decBorder(bm[1]);if(validCustom(p))askUseBorder(p);history.replaceState(null,"",location.pathname+location.search)}catch(_){}}
   const m=location.hash.match(/^#played=(.+)$/);
   if(m){try{const o=b64d(m[1]);if(POW[o.k])celebrate({card:{k:o.k},n:POW[o.k].name,code:o.c||"",t:o.t||Date.now(),p:o.p||""},true)}catch(_){}}
 }
@@ -700,8 +694,8 @@ function mapLimits(){
   M.minZ=Math.max(8,M.zFit-.8);
 }
 function mapClamp(){
-  M.z=clampN(M.z,M.draw?8:M.minZ,M.maxZ);
-  if(M.bb&&!M.draw){
+  M.z=clampN(M.z,M.minZ,M.maxZ);
+  if(M.bb){
     const bw=M.bb[2]-M.bb[0],bh=M.bb[3]-M.bb[1];
     M.cx=clampN(M.cx,M.bb[0]-bw*.3,M.bb[2]+bw*.3);
     M.cy=clampN(M.cy,M.bb[1]-bh*.3,M.bb[3]+bh*.3);
@@ -764,7 +758,7 @@ function mapDraw(){
     }
     $("mapMask").setAttribute("d",d);$("mapLine").setAttribute("d",ln);
   }
-  drawPreview(S);
+  drawInk(S);
   mapPurge();
 }
 function zoomAbout(px,py,dz){
@@ -773,11 +767,10 @@ function zoomAbout(px,py,dz){
   M.cx=gx-(px-M.w/2)/s1;M.cy=gy-(py-M.h/2)/s1;M.z=nz;M.moved=true;mapClamp();mapRender();
 }
 async function loadBorder(){
-  if(M.custom)return;
   try{const s=JSON.parse(localStorage.getItem("bc_border_v1"));if(validBorder(s)){setBorder(s,"Border: Trenčín city limits (OpenStreetMap, saved on this device)");return}}catch(_){}
   try{
     const r=await fetch(NOM);if(!r.ok)throw new Error("http");
-    const j=await r.json();if(M.custom)return;let best=null,ba=1e9;
+    const j=await r.json();let best=null,ba=1e9;
     for(const f of j.features||[]){
       const p=f.geometry&&toPolys(f.geometry);if(!p||!validBorder(p))continue;
       const [a,b,c,d]=bboxOf(p),area=(c-a)*(d-b);if(area<ba){ba=area;best=p}
@@ -795,10 +788,12 @@ function initMap(){
     if(e.target.closest(".mapctl"))return;
     try{box.setPointerCapture(e.pointerId)}catch(_){}
     P.set(e.pointerId,[e.clientX,e.clientY]);dragged=0;
+    if(M.drawOn){if(P.size===1){const r=box.getBoundingClientRect();startStroke(e.clientX-r.left,e.clientY-r.top)}else cancelStroke()}
   });
   box.addEventListener("pointermove",e=>{
     if(!P.has(e.pointerId))return;
     const old=P.get(e.pointerId),nw=[e.clientX,e.clientY],r=box.getBoundingClientRect();
+    if(M.cur&&P.size===1){addStrokePoint(nw[0]-r.left,nw[1]-r.top);P.set(e.pointerId,nw);return}
     if(P.size===1){
       const S=256*2**M.z;M.cx-=(nw[0]-old[0])/S;M.cy-=(nw[1]-old[1])/S;
       dragged+=Math.abs(nw[0]-old[0])+Math.abs(nw[1]-old[1]);M.moved=true;P.set(e.pointerId,nw);mapClamp();mapRender();
@@ -813,9 +808,8 @@ function initMap(){
   const up=e=>{
     if(!P.has(e.pointerId))return;
     const single=P.size===1;P.delete(e.pointerId);
-    if(single&&dragged<8&&M.draw){
-      const r=box.getBoundingClientRect();M.draw.push(mapToLonLat(e.clientX-r.left,e.clientY-r.top));drawUi();
-    }else if(single&&dragged<8){
+    if(M.cur){endStroke();return}
+    if(single&&dragged<8){
       const now=Date.now(),r=box.getBoundingClientRect();
       if(now-tapT<320&&Math.hypot(e.clientX-tapX,e.clientY-tapY)<30){zoomAbout(e.clientX-r.left,e.clientY-r.top,1);tapT=0}
       else{tapT=now;tapX=e.clientX;tapY=e.clientY}
@@ -831,139 +825,52 @@ function initMap(){
   $("mFit").onclick=mapFit;
   if(window.ResizeObserver)new ResizeObserver(mapResize).observe(box);
   window.addEventListener("resize",mapResize);
-  const cb=getCustom();
-  if(cb){M.custom=true;setBorder(cb,CUSTOM_LABEL)}
-  else{setBorder(fallbackBorder(),"Border: approximate area around Trenčín (loading the exact city limits...)");loadBorder()}
-  borderUi();
+  setBorder(fallbackBorder(),"Border: approximate area around Trenčín (loading the exact city limits...)");
+  loadBorder();
 }
-/* ---------- custom borders ---------- */
-const CKEY="bc_border_custom_v1",CUSTOM_LABEL="Border: your own border";
-M.draw=null;M.custom=false;
-function validCustom(p){
-  try{
-    if(!Array.isArray(p)||!p.length)return false;
-    for(const poly of p){if(!Array.isArray(poly)||!poly.length)return false;
-      for(const ring of poly){if(!Array.isArray(ring)||ring.length<4)return false;
-        for(const pt of ring)if(!isFinite(pt[0])||!isFinite(pt[1])||Math.abs(pt[0])>180||Math.abs(pt[1])>85)return false}}
-    const [a,b,c,d]=bboxOf(p);
-    return c-a>.0005&&d-b>.0005&&c-a<3&&d-b<3;
-  }catch(_){return false}
+/* ---------- drawing on the map ---------- */
+const INK_KEY="bc_ink_v1",INK_COLORS=["#1d6fe8","#d6249f","#12a150","#ff8c00","#222222"];
+M.strokes=[];M.cur=null;M.drawOn=false;M.pen=INK_COLORS[0];
+try{const a=JSON.parse(localStorage.getItem(INK_KEY));if(Array.isArray(a))M.strokes=a.filter(s=>s&&typeof s.c==="string"&&Array.isArray(s.p)&&s.p.length)}catch(_){}
+function saveInk(){
+  let n=0;for(let i=M.strokes.length-1;i>=0;i--){n+=M.strokes[i].p.length;if(n>30000){M.strokes=M.strokes.slice(i+1);break}}
+  try{localStorage.setItem(INK_KEY,JSON.stringify(M.strokes))}catch(_){}
 }
-const getCustom=()=>{try{const c=JSON.parse(localStorage.getItem(CKEY));return validCustom(c)?c:null}catch(_){return null}};
-const closeRing=r=>{const a=r.slice();const f=a[0],l=a[a.length-1];if(f[0]!==l[0]||f[1]!==l[1])a.push(f);return a};
-function encBorder(polys){
-  return b64e(polys.map(poly=>poly.map(ring=>{let px=0,py=0;return ring.map(([lo,la])=>{const x=Math.round(lo*1e5),y=Math.round(la*1e5),d=[x-px,y-py];px=x;py=y;return d}).flat()})));
-}
-function decBorder(code){
-  return b64d(code).map(poly=>poly.map(ring=>{let x=0,y=0;const out=[];for(let i=0;i<ring.length;i+=2){x+=ring[i];y+=ring[i+1];out.push([x/1e5,y/1e5])}return out}));
-}
-function collectGeo(o,out){
-  if(!o)return;
-  if(o.type==="FeatureCollection")(o.features||[]).forEach(f=>collectGeo(f,out));
-  else if(o.type==="Feature")collectGeo(o.geometry,out);
-  else if(o.type==="GeometryCollection")(o.geometries||[]).forEach(g=>collectGeo(g,out));
-  else if(o.type==="Polygon")out.push(o.coordinates);
-  else if(o.type==="MultiPolygon")o.coordinates.forEach(c=>out.push(c));
-}
-function parseBorderText(t){
-  t=(t||"").trim();if(!t)throw new Error("Nothing to import.");
-  let m=t.match(/#border=([A-Za-z0-9_-]+)/);
-  if(!m&&/^[A-Za-z0-9_-]{16,}$/.test(t))m=[0,t];
-  if(m){try{return decBorder(m[1])}catch(_){throw new Error("That border code isn't valid.")}}
-  if(t[0]==="{"||t[0]==="["){
-    const out=[];collectGeo(JSON.parse(t),out);
-    const polys=out.map(poly=>poly.map(r=>closeRing(r.map(p=>[p[0],p[1]]))));
-    if(!polys.length)throw new Error("No area (polygon) found in that GeoJSON.");return polys;
-  }
-  if(t.includes("<")){
-    const doc=new DOMParser().parseFromString(t,"text/xml"),polys=[];
-    const coords=el=>(el.textContent||"").trim().split(/\s+/).map(s=>s.split(",").map(Number)).filter(a=>a.length>=2&&isFinite(a[0])&&isFinite(a[1])).map(a=>[a[0],a[1]]);
-    for(const pg of doc.getElementsByTagNameNS("*","Polygon")){
-      const rings=[];
-      for(const tag of ["outerBoundaryIs","innerBoundaryIs"])for(const b of pg.getElementsByTagNameNS("*",tag)){
-        const c=b.getElementsByTagNameNS("*","coordinates")[0];if(c)rings.push(closeRing(coords(c)));
-      }
-      if(rings.length)polys.push(rings);
-    }
-    if(!polys.length)throw new Error("No area (polygon) found in that KML. Draw an area, not just a line or pin.");
-    return polys;
-  }
-  throw new Error("I couldn't read that. Use KML, GeoJSON or a border code.");
-}
-function acceptBorder(polys){
-  try{localStorage.setItem(CKEY,JSON.stringify(polys))}catch(_){}
-  M.custom=true;M.moved=false;setBorder(polys,CUSTOM_LABEL);borderUi();
-}
-function borderUi(){$("bShare").hidden=!M.custom;$("bReset").hidden=!M.custom}
-function resetBorder(){
-  try{localStorage.removeItem(CKEY)}catch(_){}
-  M.custom=false;M.moved=false;borderUi();
-  setBorder(fallbackBorder(),"Border: approximate area around Trenčín (loading the exact city limits...)");loadBorder();
-}
-async function shareBorder(){
-  const code=encBorder(M.border),text="Playing area for our game. Open this link, or paste it under Import on the Map tab:\n"+(linkOK()?location.href.split("#")[0]+"#border="+code:code);
-  try{if(navigator.share){await navigator.share({text});return}}catch(err){if(err&&err.name==="AbortError")return}
-  window.open("https://wa.me/?text="+encodeURIComponent(text),"_blank");
-}
-function dlg(build){const z=$("zoom");z.innerHTML="";build(z);z.hidden=false}
-function dlgRow(z,btns){
-  const row=document.createElement("div");row.className="za";
-  btns.forEach((a,i)=>{const b=document.createElement("button");b.textContent=a.label;b.className=i===0?"primary":"ghost";b.onclick=a.fn;row.appendChild(b)});
-  z.appendChild(row);
-}
-function askUseBorder(polys){
-  dlg(z=>{
-    const t=document.createElement("div");t.className="zt";t.style.fontSize="1.05rem";t.textContent="Use this playing-area border on this device?";z.appendChild(t);
-    dlgRow(z,[{label:"Use it",fn:()=>{closeZoom();acceptBorder(polys)}},{label:"Not now",fn:closeZoom}]);
-  });
-}
-function importDialog(){
-  dlg(z=>{
-    const t=document.createElement("div");t.className="zt";t.textContent="Paste a KML or GeoJSON area, a border code, or a shared link. Or choose a file.";z.appendChild(t);
-    const ta=document.createElement("textarea");ta.placeholder="Paste here...";z.appendChild(ta);
-    const f=document.createElement("input");f.type="file";f.accept=".kml,.json,.geojson,.txt,application/json,text/plain";
-    f.onchange=()=>{const r=f.files[0];if(!r)return;const fr=new FileReader();fr.onload=()=>{ta.value=fr.result};fr.readAsText(r)};z.appendChild(f);
-    const err=document.createElement("div");err.className="zt";err.style.color="#ff9c8f";z.appendChild(err);
-    dlgRow(z,[{label:"Use this border",fn:()=>{
-      try{const p=parseBorderText(ta.value);if(!validCustom(p))throw new Error("That area looks too small, too big or broken.");closeZoom();acceptBorder(p)}
-      catch(e){err.textContent=e.message||"I couldn't read that."}
-    }},{label:"Cancel",fn:closeZoom}]);
-  });
-}
-/* drawing */
 function mapToLonLat(px,py){
   const S=256*2**M.z,x=M.cx+(px-M.w/2)/S,y=M.cy+(py-M.h/2)/S,n=Math.PI*(1-2*y);
   return [+(x*360-180).toFixed(6),+(180/Math.PI*Math.atan(Math.sinh(n))).toFixed(6)];
 }
-function drawUi(){
-  const on=!!M.draw;$("drawBar").hidden=!on;$("mapTools").hidden=on;
-  if(on){$("drawMsg").textContent=M.draw.length<3?"Tap the map to place the corners of your area ("+M.draw.length+" so far, at least 3).":M.draw.length+" corners. Keep tapping, or save.";$("dSave").disabled=M.draw.length<3}
-  mapRender();
+function drawInk(S){
+  const P=pt=>[((mx(pt[0])-M.cx)*S+M.w/2).toFixed(1),((my(pt[1])-M.cy)*S+M.h/2).toFixed(1)];
+  let h="";
+  for(const s of M.strokes){
+    if(s.p.length===1){const [x,y]=P(s.p[0]);h+='<circle cx="'+x+'" cy="'+y+'" r="3.5" fill="'+s.c+'" stroke="none"/>';continue}
+    let d="";s.p.forEach((pt,i)=>{const [x,y]=P(pt);d+=(i?"L":"M")+x+" "+y});
+    h+='<path d="'+d+'" stroke="'+s.c+'" stroke-width="5"/>';
+  }
+  $("mapInk").innerHTML=h;
 }
-function drawPreview(S){
-  const pts=M.draw||[];let d="",c="";
-  pts.forEach((pt,i)=>{const x=((mx(pt[0])-M.cx)*S+M.w/2).toFixed(1),y=((my(pt[1])-M.cy)*S+M.h/2).toFixed(1);d+=(i?"L":"M")+x+" "+y;c+='<circle cx="'+x+'" cy="'+y+'" r="7"/>'});
-  if(pts.length>2)d+="Z";
-  $("mapDraw").setAttribute("d",d);$("mapPts").innerHTML=c;
+function startStroke(px,py){const s={c:M.pen,p:[mapToLonLat(px,py)]};M.strokes.push(s);M.cur=s;M.last=[px,py];mapRender()}
+function addStrokePoint(px,py){
+  if(!M.cur||Math.hypot(px-M.last[0],py-M.last[1])<3)return;
+  M.cur.p.push(mapToLonLat(px,py));M.last=[px,py];mapRender();
 }
-function startDraw(){M.draw=[];drawUi()}
-function saveDraw(){
-  if(!M.draw||M.draw.length<3)return;
-  const polys=[[closeRing(M.draw)]];
-  if(!validCustom(polys)){$("drawMsg").textContent="That area is too small or too big. Adjust the corners.";return}
-  M.draw=null;drawUi();acceptBorder(polys);
+function endStroke(){M.cur=null;saveInk();mapRender()}
+function cancelStroke(){if(M.cur){const i=M.strokes.indexOf(M.cur);if(i>=0)M.strokes.splice(i,1);M.cur=null;mapRender()}}
+function inkUi(){
+  $("drawBar").hidden=!M.drawOn;$("mapTools").hidden=M.drawOn;
+  $("mapBox").classList.toggle("inking",M.drawOn);
+  document.querySelectorAll("#swatches .sw").forEach(b=>b.classList.toggle("on",b.dataset.c===M.pen));
 }
-$("bEdit").onclick=startDraw;
-$("bImport").onclick=importDialog;
-$("bShare").onclick=shareBorder;
-$("bReset").onclick=()=>dlg(z=>{
-  const t=document.createElement("div");t.className="zt";t.style.fontSize="1.05rem";t.textContent="Go back to the Trenčín city limits?";z.appendChild(t);
-  dlgRow(z,[{label:"Reset border",fn:()=>{closeZoom();resetBorder()}},{label:"Keep mine",fn:closeZoom}]);
+INK_COLORS.forEach(c=>{
+  const b=document.createElement("button");b.className="sw";b.style.background=c;b.dataset.c=c;b.setAttribute("aria-label","Pen colour "+c);
+  b.onclick=()=>{M.pen=c;inkUi()};$("swatches").appendChild(b);
 });
-$("dUndo").onclick=()=>{if(M.draw){M.draw.pop();drawUi()}};
-$("dClear").onclick=()=>{if(M.draw){M.draw=[];drawUi()}};
-$("dSave").onclick=saveDraw;
-$("dCancel").onclick=()=>{M.draw=null;drawUi()};
+$("bDraw").onclick=()=>{M.drawOn=true;inkUi()};
+$("dDone").onclick=()=>{cancelStroke();M.drawOn=false;inkUi()};
+$("dUndo").onclick=()=>{if(M.strokes.length){M.strokes.pop();saveInk();mapRender()}};
+$("dClear").onclick=()=>{if(M.strokes.length&&confirm("Erase everything you drew on the map?")){M.strokes=[];saveInk();mapRender()}};
+inkUi();
 let tab="cards";
 function mountMap(host){
   const v=$("mapView");
