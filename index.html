@@ -60,7 +60,8 @@ input::placeholder{color:var(--muted)}
 @keyframes tw{0%,100%{opacity:0;transform:scale(.3)}50%{opacity:1;transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){.sparkle{display:none}.fxbox .card{animation:none}}
 [hidden]{display:none!important}
-#game{display:flex;flex-direction:column;align-items:center;width:100%}
+#game,#seeker{display:flex;flex-direction:column;align-items:center;width:100%}
+#game[hidden],#seeker[hidden]{display:none}
 .home{min-height:85vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;width:100%;max-width:420px}
 .home .sub{margin:0 0 6px}
 .home input{width:100%;font-size:1.1rem;padding:14px;text-align:center}
@@ -129,11 +130,11 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
   <button class="ghost big" id="goSeeker">Play as seeker</button>
 </main>
 
-<main id="seeker" class="home" hidden>
-  <div class="logo" aria-hidden="true">🔍</div>
+<main id="seeker" hidden>
+  <button class="ghost" id="seekerBack" style="align-self:flex-start;margin-bottom:10px">← Home</button>
   <h1>Seeker</h1>
-  <p class="sub">Seeker tools are coming soon.</p>
-  <button class="ghost big" id="seekerBack">Back</button>
+  <p class="who" id="whoS"></p>
+  <div id="seekerMapSlot" class="view"></div>
 </main>
 
 <main id="game" hidden>
@@ -628,6 +629,8 @@ function show(id){
   for(const n of ["home","game","seeker"])$(n).hidden=n!==id;
   $("who").textContent="Playing as hider"+(player()?" · "+player():"");
   window.scrollTo(0,0);
+  if(id==="seeker"){$("whoS").textContent="Playing as seeker"+(player()?" · "+player():"");mountMap($("seekerMapSlot"))}
+  if(id==="game")showTab(tab);
 }
 $("goHider").onclick=()=>show("game");
 $("goSeeker").onclick=()=>show("seeker");
@@ -807,10 +810,18 @@ function initMap(){
   setBorder(fallbackBorder(),"Border: approximate area around Trenčín (loading the exact city limits...)");
   loadBorder();
 }
+let tab="cards";
+function mountMap(host){
+  const v=$("mapView");
+  if(v.parentNode!==host)host.appendChild(v);
+  v.hidden=false;
+  if(!mapReady){mapReady=true;initMap()}else mapResize();
+}
 function showTab(t){
-  $("cardsView").hidden=t!=="cards";$("mapView").hidden=t!=="map";
+  tab=t;
+  $("cardsView").hidden=t!=="cards";
   $("tabCards").classList.toggle("on",t==="cards");$("tabMap").classList.toggle("on",t==="map");
-  if(t==="map"){if(!mapReady){mapReady=true;initMap()}else mapResize()}
+  if(t==="map")mountMap($("game"));else $("mapView").hidden=true;
 }
 $("tabCards").onclick=()=>showTab("cards");
 $("tabMap").onclick=()=>showTab("map");
