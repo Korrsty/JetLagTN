@@ -79,6 +79,7 @@ input::placeholder{color:var(--muted)}
 #mapSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
 .mapctl{position:absolute;z-index:2;top:10px;right:10px;display:flex;flex-direction:column;gap:6px}
 .mapctl button{width:42px;height:42px;padding:0;font-size:1.3rem;background:#fff;color:#222;border:1px solid #bbb}
+.mapctl button.on{background:#1d6fe8;color:#fff;border-color:#1d6fe8}
 .mapat{position:absolute;z-index:2;right:0;bottom:0;background:rgba(255,255,255,.82);color:#333;font:11px Arial,sans-serif;padding:2px 6px;text-decoration:none}
 .mapbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;margin:12px 0 2px;width:100%;max-width:760px}
 .mapbar button{padding:8px 12px;font-size:.9rem}
@@ -197,11 +198,11 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="mapView" class="view" hidden>
   <div id="mapBox" aria-label="Map of Trenčín">
     <div id="mapTiles"></div>
-    <svg id="mapSvg"><path id="mapMask" fill="rgba(8,24,16,.5)" fill-rule="evenodd"/><path id="mapLine" fill="none" stroke="#ff3d2e" stroke-width="3" stroke-linejoin="round"/><g id="mapInk" fill="none" stroke-linecap="round" stroke-linejoin="round"></g></svg>
-    <div class="mapctl"><button id="mZin" aria-label="Zoom in">+</button><button id="mZout" aria-label="Zoom out">−</button><button id="mFit" aria-label="Show the whole playing area">⌖</button></div>
+    <svg id="mapSvg"><path id="mapMask" fill="rgba(8,24,16,.5)" fill-rule="evenodd"/><path id="mapLine" fill="none" stroke="#ff3d2e" stroke-width="3" stroke-linejoin="round"/><g id="mapInk" fill="none" stroke-linecap="round" stroke-linejoin="round"></g><g id="mapMe"></g></svg>
+    <div class="mapctl"><button id="mZin" aria-label="Zoom in">+</button><button id="mZout" aria-label="Zoom out">−</button><button id="mFit" aria-label="Show the whole playing area">⌖</button><button id="mLoc" hidden aria-label="Follow my location">◎</button></div>
     <a class="mapat" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
   </div>
-  <div class="mapbar" id="mapTools"><button class="ghost" id="bDraw">✏️ Draw on map</button></div>
+  <div class="mapbar" id="mapTools"><button class="ghost" id="bDraw">✏️ Draw on map</button><button class="ghost" id="bGps">📍 My location</button></div>
   <div class="mapbar" id="drawBar" hidden>
     <div class="drawmsg">One finger draws. Two fingers move and zoom the map.</div>
     <span id="swatches" style="display:flex;gap:8px"></span>
@@ -209,6 +210,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
     <button class="ghost" id="dClear">Clear all</button>
     <button class="primary" id="dDone" style="padding:8px 18px;font-size:.95rem">Done</button>
   </div>
+  <p class="sub" id="gpsNote" hidden></p>
   <p class="sub" id="mapNote"></p>
 </div>
 
@@ -759,6 +761,7 @@ function mapDraw(){
     $("mapMask").setAttribute("d",d);$("mapLine").setAttribute("d",ln);
   }
   drawInk(S);
+  drawMe(S);
   mapPurge();
 }
 function zoomAbout(px,py,dz){
@@ -796,7 +799,7 @@ function initMap(){
     if(M.cur&&P.size===1){addStrokePoint(nw[0]-r.left,nw[1]-r.top);P.set(e.pointerId,nw);return}
     if(P.size===1){
       const S=256*2**M.z;M.cx-=(nw[0]-old[0])/S;M.cy-=(nw[1]-old[1])/S;
-      dragged+=Math.abs(nw[0]-old[0])+Math.abs(nw[1]-old[1]);M.moved=true;P.set(e.pointerId,nw);mapClamp();mapRender();
+      dragged+=Math.abs(nw[0]-old[0])+Math.abs(nw[1]-old[1]);M.moved=true;if(M.follow&&dragged>6){M.follow=false;meUi()}P.set(e.pointerId,nw);mapClamp();mapRender();
     }else if(P.size===2){
       const b=[...P.values()];P.set(e.pointerId,nw);const a=[...P.values()];
       const d0=Math.hypot(b[0][0]-b[1][0],b[0][1]-b[1][1]),d1=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);
@@ -871,6 +874,52 @@ $("dDone").onclick=()=>{cancelStroke();M.drawOn=false;inkUi()};
 $("dUndo").onclick=()=>{if(M.strokes.length){M.strokes.pop();saveInk();mapRender()}};
 $("dClear").onclick=()=>{if(M.strokes.length&&confirm("Erase everything you drew on the map?")){M.strokes=[];saveInk();mapRender()}};
 inkUi();
+/* ---------- my location (GPS, only on this device) ---------- */
+M.me=null;M.watch=null;M.follow=false;
+function gpsNote(t){const n=$("gpsNote");n.textContent=t||"";n.hidden=!t}
+function meUi(){
+  const on=M.watch!==null;
+  $("bGps").textContent=on?"Stop location":"📍 My location";
+  $("mLoc").hidden=!on;$("mLoc").classList.toggle("on",M.follow);
+}
+function drawMe(S){
+  const g=$("mapMe");
+  if(!M.me){g.innerHTML="";return}
+  const x=((mx(M.me.lon)-M.cx)*S+M.w/2).toFixed(1),y=((my(M.me.lat)-M.cy)*S+M.h/2).toFixed(1);
+  const mpp=156543.03392*Math.cos(M.me.lat*Math.PI/180)/2**M.z,r=Math.max(12,M.me.acc/mpp).toFixed(1);
+  g.innerHTML='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="rgba(29,111,232,.16)" stroke="rgba(29,111,232,.55)" stroke-width="1.5"/>'+
+    '<circle cx="'+x+'" cy="'+y+'" r="8" fill="#1d6fe8" stroke="#fff" stroke-width="3"/>';
+}
+function centerOnMe(zoomTo){
+  if(!M.me)return;
+  M.cx=mx(M.me.lon);M.cy=my(M.me.lat);if(zoomTo)M.z=Math.max(M.z,zoomTo);
+  M.moved=true;mapClamp();mapRender();
+}
+function onFix(pos){
+  const c=pos.coords,first=!M.me;
+  M.me={lon:c.longitude,lat:c.latitude,acc:c.accuracy||30};
+  gpsNote("Your location (only you can see it) · accuracy about "+Math.round(M.me.acc)+" m");
+  if(first)M.follow=true;
+  if(M.follow)centerOnMe(first?16:0);else mapRender();
+  meUi();
+}
+function onGpsErr(e){
+  gpsNote({1:"Location is blocked. Allow location for this app in your browser or phone settings, then try again.",2:"Can't get a position right now. Try going outside or near a window.",3:"Still looking for a GPS signal..."}[e.code]||"Location error.");
+  if(e.code===1)stopGps(true);
+}
+function startGps(){
+  if(!navigator.geolocation){gpsNote("This browser can't give your location.");return}
+  if(window.isSecureContext===false){gpsNote("Location only works in the installed app (https), not from a plain file.");return}
+  gpsNote("Looking for your location...");
+  M.watch=navigator.geolocation.watchPosition(onFix,onGpsErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+  meUi();
+}
+function stopGps(keepNote){
+  if(M.watch!==null)navigator.geolocation.clearWatch(M.watch);
+  M.watch=null;M.me=null;M.follow=false;if(!keepNote)gpsNote("");meUi();mapRender();
+}
+$("bGps").onclick=()=>{M.watch===null?startGps():stopGps()};
+$("mLoc").onclick=()=>{if(M.me){M.follow=true;centerOnMe(16);meUi()}};
 let tab="cards";
 function mountMap(host){
   const v=$("mapView");
