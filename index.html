@@ -87,6 +87,15 @@ input::placeholder{color:var(--muted)}
 .mapbar .sw{width:34px;height:34px;border-radius:50%;padding:0;border:2px solid #fff}
 .mapbar .sw.on{outline:3px solid var(--btn);outline-offset:2px}
 #mapBox.inking{cursor:crosshair}
+.qcat{width:100%;max-width:760px;margin:0 0 16px;background:rgba(0,0,0,.2);border-radius:12px;padding:14px 14px 6px}
+.qcat h2{margin:0;font-size:1.15rem;color:var(--btn);display:flex;justify-content:space-between;align-items:baseline}
+.qcat h2 small{font-size:.8rem;color:var(--muted);font-weight:400}
+.qtpl{margin:6px 0 10px;color:var(--text);font-size:.95rem;font-style:italic}
+.qi{display:flex;align-items:center;gap:12px;padding:10px 4px;min-height:46px;border-top:1px solid rgba(232,232,232,.12);cursor:pointer}
+.qi input{width:22px;height:22px;accent-color:var(--btn);flex:none;margin:0;cursor:pointer}
+.qn{color:var(--muted);min-width:1.7em}
+.qt{flex:1}
+.qi.done .qt,.qi.done .qn{text-decoration:line-through;opacity:.45}
 .tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
 .card.dimmed{opacity:.4}
 .card svg{position:absolute;inset:0;width:100%;height:100%}
@@ -139,9 +148,14 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 
 <main id="seeker" hidden>
   <button class="ghost" id="seekerBack" style="align-self:flex-start;margin-bottom:10px">← Home</button>
-  <h1>Seeker map</h1>
+  <h1 id="seekerTitle">Seeker map</h1>
   <p class="who" id="whoS"></p>
+  <div class="tabs" role="tablist">
+    <button id="sTabMap" class="on" role="tab">Map</button>
+    <button id="sTabQ" role="tab">Questions</button>
+  </div>
   <div id="seekerMapSlot" class="view"></div>
+  <div id="questionsView" class="view" hidden></div>
 </main>
 
 <main id="game" hidden>
@@ -644,7 +658,7 @@ function show(id){
   for(const n of ["home","game","seeker"])$(n).hidden=n!==id;
   $("who").textContent="Playing as hider"+(player()?" · "+player():"");
   window.scrollTo(0,0);
-  if(id==="seeker"){$("whoS").textContent="Playing as seeker"+(player()?" · "+player():"");mountMap($("seekerMapSlot"))}
+  if(id==="seeker"){$("whoS").textContent="Playing as seeker"+(player()?" · "+player():"");showSeekerTab(sTab)}
   if(id==="game")showTab(tab);
 }
 $("goHider").onclick=()=>show("game");
@@ -919,6 +933,52 @@ function stopGps(keepNote){
 }
 $("bGps").onclick=()=>{M.watch===null?startGps():stopGps()};
 $("mLoc").onclick=()=>{if(M.me){M.follow=true;centerOnMe(16);meUi()}};
+/* ---------- seeker questions ---------- */
+const QS=[
+{id:"match",name:"Matching",tpl:"Is your nearest _______ the same as my nearest _______?",items:["Transit Line","Station’s Name Length","Street or Path","District","Park","Museum","Amusement park","Golf course","Movie theater","Library"]},
+{id:"meas",name:"Measuring",tpl:"Compared to me, are you closer to or further from _______?",items:["A commercial airport","A train station","Sea level","Body of water","A mountain","A park","An amusement park","A golf course","A museum","A movie theater","A library"]},
+{id:"therm",name:"Thermometer",tpl:"I've just traveled (at least) Distance. Am I hotter or colder?",items:["800 meters","1600 meters"]},
+{id:"radar",name:"Radar",tpl:"Are you within ______ of me?",items:["400 m","800 m","1600 m","CHOOSE"]},
+{id:"photo",name:"Photo",tpl:"Send a photo of ______.",items:["A tree","The sky","You","Widest street","Tallest Structure in Your Sightline","Any Building Visible from Station"]}
+];
+const Q_KEY="bc_questions_v1";
+let qDone=new Set();
+try{const a=JSON.parse(localStorage.getItem(Q_KEY));if(Array.isArray(a))qDone=new Set(a)}catch(_){}
+function saveQ(){try{localStorage.setItem(Q_KEY,JSON.stringify([...qDone]))}catch(_){}}
+function renderQs(){
+  const host=$("questionsView");host.innerHTML="";
+  const hint=document.createElement("p");hint.className="sub";hint.textContent="Tick a question once you've asked it.";host.appendChild(hint);
+  for(const c of QS){
+    const sec=document.createElement("section");sec.className="qcat";
+    const done=c.items.filter((_,i)=>qDone.has(c.id+"-"+i)).length;
+    sec.innerHTML='<h2>'+c.name+'<small>'+done+' / '+c.items.length+' asked</small></h2><p class="qtpl"></p>';
+    sec.querySelector(".qtpl").textContent=c.tpl;
+    c.items.forEach((t,i)=>{
+      const key=c.id+"-"+i,lab=document.createElement("label");
+      lab.className="qi"+(qDone.has(key)?" done":"");
+      const cb=document.createElement("input");cb.type="checkbox";cb.checked=qDone.has(key);
+      const n=document.createElement("span");n.className="qn";n.textContent=(i+1)+".";
+      const tx=document.createElement("span");tx.className="qt";tx.textContent=t;
+      cb.onchange=()=>{cb.checked?qDone.add(key):qDone.delete(key);saveQ();renderQs()};
+      lab.append(cb,n,tx);sec.appendChild(lab);
+    });
+    host.appendChild(sec);
+  }
+  const r=document.createElement("button");r.className="ghost";r.textContent="Clear all ticks";
+  r.onclick=()=>{if(qDone.size&&confirm("Un-tick every question?")){qDone.clear();saveQ();renderQs()}};
+  host.appendChild(r);
+}
+let sTab="map";
+function showSeekerTab(t){
+  sTab=t;
+  $("seekerTitle").textContent=t==="map"?"Seeker map":"Seeker questions";
+  $("sTabMap").classList.toggle("on",t==="map");$("sTabQ").classList.toggle("on",t==="questions");
+  $("questionsView").hidden=t!=="questions";
+  if(t==="map")mountMap($("seekerMapSlot"));
+  else{$("mapView").hidden=true;renderQs()}
+}
+$("sTabMap").onclick=()=>showSeekerTab("map");
+$("sTabQ").onclick=()=>showSeekerTab("questions");
 let tab="cards";
 function mountMap(host){
   const v=$("mapView");
