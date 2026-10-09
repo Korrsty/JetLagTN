@@ -64,7 +64,7 @@ input::placeholder{color:var(--muted)}
 .home{min-height:85vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;width:100%;max-width:420px}
 .home .sub{margin:0 0 6px}
 .home input{width:100%;font-size:1.1rem;padding:14px;text-align:center}
-.big{width:100%;font-size:1.15rem;padding:16px}
+.home button.big{width:100%;font-size:1.15rem;font-weight:700;padding:16px;min-height:58px;line-height:1.2}
 .logo{width:170px;height:170px;border-radius:28px;object-fit:cover;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .big.alt{background:var(--orange);color:var(--btn-ink);border-color:var(--orange);font-weight:700}
 .who{margin:0 0 6px;color:var(--btn);font-size:.95rem}
@@ -183,9 +183,12 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <p class="msg" id="msg" role="status"></p>
 
 <div class="controls">
-  <select id="n" aria-label="Number of cards to draw">
-    <option value="1">Draw 1</option><option value="2">Draw 2</option><option value="3">Draw 3</option>
-    <option value="4">Draw 4</option><option value="5">Draw 5</option>
+  <select id="n" aria-label="Which question was asked">
+    <option value="1">Photo</option>
+    <option value="2">Radar</option>
+    <option value="2">Thermometer</option>
+    <option value="3">Matching</option>
+    <option value="3">Measuring</option>
   </select>
   <button class="primary" id="draw">Draw</button>
   <button class="ghost" id="act1" hidden></button>
