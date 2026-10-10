@@ -373,7 +373,7 @@ function discardPending(){discarded+=pending.length;pending=[];sel=null;render()
 function feasible(k,src){
   if(k==="x1"||FUN.includes(k))return true;
   if(CURSE[k]){const r=CURSE[k].r;if(r.d)return hand.length-1>=r.d;if(r.tb)return hand.some((c,i)=>i!==src&&c.k==="time");return true}
-  if(k==="dup")return hand.some((c,i)=>i!==src&&c.k!=="dup"&&(c.k==="time"||feasible(c.k,src)));
+  if(k==="dup")return hand.some((c,i)=>i!==src&&c.k!=="dup");
   return hand.length-1>=POW[k].need;
 }
 function play(i){
@@ -402,11 +402,12 @@ function confirmDisc(){
   if(curse)played.unshift(e);
   mode=null;if(draw)drawToHand(draw);render();celebrate(e);
 }
-function validTarget(i){const c=hand[i];return i!==mode.src&&c.k!=="dup"&&(c.k==="time"||feasible(c.k,mode.src))}
+function validTarget(i){return i!==mode.src&&hand[i].k!=="dup"}
+// Duplicate only makes a copy of the card. Nothing is played and nothing is discarded.
 function dupTarget(j){
-  const t=hand[j];
-  if(t.k==="time"){hand[mode.src]={k:"time",m:t.m,copy:true,fresh:true};mode=null;render()}
-  else begin(t.k,mode.src);
+  const t=hand[j],c={k:t.k,copy:true,fresh:true};
+  if(t.k==="time")c.m=t.m;
+  hand[mode.src]=c;mode=null;render();
 }
 function confirmFun(){
   const {k,src}=mode,code=newCode(),e=mkEntry(k,code),all=k==="move"||(CURSE[k]&&CURSE[k].r==="hand");
@@ -448,7 +449,7 @@ function render(pop){
     a1.hidden=false;a1.textContent="Confirm play";a1.onclick=confirmFun;
     a2.hidden=false;a2.textContent="Cancel";a2.onclick=cancelMode;
   }else if(mode){
-    m="Tap the card in your hand that you want to copy.";
+    m="Tap the card you want to copy. You get a copy of it. Nothing is played.";
     a2.hidden=false;a2.textContent="Cancel";a2.onclick=cancelMode;
   }else if(!pending.length){
     m=full?"Your hand is full. Tap a card in your hand to remove it and make room.":(deck.length?"":"No cards left. Start a new game.");
@@ -505,7 +506,7 @@ function handActions(c,i){
   if(c.k!=="time"){
     const ok=!pending.length&&feasible(c.k,i);
     acts.push({label:"Play",fn:()=>play(i),disabled:!ok});
-    if(!ok)note=pending.length?"Finish with the cards on the table first.":"You don't have enough other cards to pay the casting cost.";
+    if(!ok)note=pending.length?"Finish with the cards on the table first.":(c.k==="dup"?"You need another card in your hand to copy.":"You don't have enough other cards to pay the casting cost.");
   }
   acts.push({label:"Remove from hand",fn:()=>removeFromHand(i),ghost:true});
   return {acts,note};
