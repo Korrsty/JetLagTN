@@ -16,6 +16,7 @@
   --back:#e8383d; --text:#e8e8e8; --muted:#a3abb5; --btn:#f7b64d; --btn-ink:#263343;
 }
 *,*::before,*::after{box-sizing:inherit}
+html,body{overscroll-behavior-y:none}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 30%,var(--felt),var(--felt-dark));
   color:var(--text);font-family:Montserrat,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;display:flex;flex-direction:column;align-items:center;padding:24px 16px 40px}
@@ -351,6 +352,29 @@ function cardEl(c,small,pop){
 function mkBtn(label,fn){const b=document.createElement("button");b.className="cardbtn";b.setAttribute("aria-label",label);b.onclick=fn;return b}
 const dim=el=>{el.classList.add("dimmed");return el};
 
+/* ---------- the game is saved after every move, so reloading changes nothing ---------- */
+const SAVE_KEY="bc_game_v1";
+function saveGame(){
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,deck,hand,pending,sel,discarded,limit,
+    played:played.map(e=>({n:e.n,code:e.code,card:e.card,t:e.t,p:e.p}))}))}catch(_){}
+}
+const validCard=c=>!!c&&typeof c.k==="string"&&(c.k==="time"?typeof c.m==="number"&&!!COL[c.m]:!!POW[c.k]);
+function loadGame(){
+  try{
+    const g=JSON.parse(localStorage.getItem(SAVE_KEY));
+    if(!g||g.v!==1)return false;
+    if(![g.deck,g.hand,g.pending].every(a=>Array.isArray(a)&&a.every(validCard)))return false;
+    if(!Array.isArray(g.played)||!g.played.every(e=>e&&typeof e.n==="string"&&typeof e.code==="string"&&e.card&&!!POW[e.card.k]))return false;
+    if(!(g.discarded>=0)||g.deck.length+g.hand.length+g.pending.length+g.discarded!==build().length)return false;
+    deck=g.deck;hand=g.hand;pending=g.pending;discarded=g.discarded;limit=Math.max(6,g.limit|0);played=g.played;
+    sel=Number.isInteger(g.sel)&&g.sel>=0&&g.sel<pending.length?g.sel:null;mode=null;
+    render();return true;
+  }catch(_){return false}
+}
+// extra friction for reloading (the saved game already makes a reload harmless)
+window.addEventListener("beforeunload",e=>{e.preventDefault();e.returnValue=""});
+document.addEventListener("keydown",e=>{if(e.key==="F5"||((e.ctrlKey||e.metaKey)&&String(e.key).toLowerCase()==="r"))e.preventDefault()},true);
+
 /* ---------- game logic ---------- */
 function reset(){deck=shuffle(build());hand=[];pending=[];sel=null;discarded=0;mode=null;limit=6;played=[];render()}
 function drawToHand(n){const g=deck.splice(0,Math.min(n,deck.length));g.forEach(c=>c.fresh=true);hand.push(...g)}
@@ -486,6 +510,7 @@ function render(pop){
   $("playedSec").hidden=!played.length;
   $("played").innerHTML=played.map((x,i)=>'<button class="pl" data-i="'+i+'" aria-label="Show and share '+x.n+'"><span>'+x.n+'</span><b>'+x.code+'</b></button>').join("");
   hand.forEach(c=>{delete c.fresh});
+  saveGame();
 }
 function pendingActions(c,i){
   if(sel!==null)return i===sel?{note:"This is the card you're swapping in."}:{acts:[{label:"Choose this card",fn:()=>{sel=i;render()}}]};
@@ -1099,16 +1124,4 @@ function showTab(t){
 $("tabCards").onclick=()=>showTab("cards");
 $("tabMap").onclick=()=>showTab("map");
 $("draw").onclick=draw;
-$("shuffle").onclick=reset;
-document.addEventListener("keydown",e=>{
-  if(e.code==="Space"&&!$("game").hidden&&!$("cardsView").hidden&&!["SELECT","BUTTON","INPUT"].includes(document.activeElement.tagName)){e.preventDefault();draw()}
-});
-reset();initShare();
-</script>
-<script>
-if("serviceWorker" in navigator && location.protocol.startsWith("http")){
-  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
-}
-</script>
-</body>
-</html>
+$("shuff
