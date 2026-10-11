@@ -1,4 +1,4 @@
-const CACHE="bonus-cards-v3",TILES="bonus-tiles-v1",MAX_TILES=800;
+const CACHE="bonus-cards-v4",TILES="bonus-tiles-v1",MAX_TILES=800;
 const FILES=["./","./index.html","./manifest.json","./icon-192.png","./icon-512.png","./icon-maskable-512.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(n=>n!==CACHE&&n!==TILES).map(n=>caches.delete(n)))).then(()=>self.clients.claim()))});
@@ -15,7 +15,7 @@ async function tile(url){
 }
 async function trim(c){const k=await c.keys();if(k.length>MAX_TILES)await Promise.all(k.slice(0,k.length-MAX_TILES).map(x=>c.delete(x)))}
 
-// App files: network first (so updates show up when online), cache as the offline fallback.
+// App files: network first, so updates always show up when online. The saved copy is only for offline use.
 self.addEventListener("fetch",e=>{
   if(e.request.method!=="GET")return;
   const u=new URL(e.request.url);
@@ -24,7 +24,7 @@ self.addEventListener("fetch",e=>{
   e.respondWith((async()=>{
     const cache=await caches.open(CACHE);
     try{
-      const ctrl=new AbortController(),t=setTimeout(()=>ctrl.abort(),3000);
+      const ctrl=new AbortController(),t=setTimeout(()=>ctrl.abort(),10000);
       const res=await fetch(e.request,{signal:ctrl.signal,cache:"no-store"});
       clearTimeout(t);
       if(res.ok)cache.put(e.request,res.clone());
