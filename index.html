@@ -243,7 +243,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 // Runs on its own, so it still works if something in the main script fails.
-window.BUILD="19 · 11 Oct";
+window.BUILD="20 · 11 Oct";
 window.repairApp=function(){
   window.__noUnloadPrompt=true;
   var jobs=[];
@@ -264,9 +264,13 @@ window.repairApp=function(){
   }
   window.addEventListener("error",function(e){
     var m=e.message||"";
-    if(!m||/ResizeObserver|^Script error/i.test(m))return;
+    if(/ResizeObserver/i.test(m))return;
+    if(!m||/^Script error/i.test(m))m="the app code was changed or blocked (\""+(m||"unknown")+"\")";
     banner(m+(e.lineno?" (line "+e.lineno+")":""));
   });
+  function notStarted(){if(!window.__mainReady)banner("the app code did not start. Your website host may have changed or blocked it.")}
+  window.addEventListener("load",function(){setTimeout(notStarted,500)});
+  ["goHider","goSeeker"].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener("click",notStarted)});
   window.addEventListener("unhandledrejection",function(e){
     var m=String((e.reason&&e.reason.message)||e.reason||"");
     if(m&&!/AbortError|ResizeObserver/i.test(m))banner(m);
@@ -1103,5 +1107,4 @@ const STOPS=[
 ];
 M.stops=STOPS;M.showBus=true;M.zones=new Set();
 try{M.showBus=localStorage.getItem(BUS_OFF)!=="1"}catch(_){}
-const OLD_V1_NAMES=["Gymnázium", "Hasičská", "Autobusová stanica", "Gen. M. R. Štefánika", "Legionárska", "Braneckého", "Obchodná akadémia", "Zimný štadión", "Považská", "Hodžova, kotolňa", "Žilinská", "Ivana Krasku", "Sihoť IV", "OC City Park", "Juh, Saratovská", "Cintorín Juh", "Mateja Bela", "Juh, Gen. Svobodu", "Pod Juhom", "Cintorínska", "Dlhé Hony", "Nemocnica", "Beckovská", "Tesco", "OC Laugaricio", "Pred poľom", "ZŠ Kubranská", "Kubrá, námestie", "28. októbra", "Soblahovská", "Inovecká, stred", "Inovecká", "Ku štvrtiam", "Za nemocnicou", "Dolný Šianec", "Električná ul. OÚNZ", "Lavičková", "Na Zongorke", "ZŠ Hodžova", "K výstavisku", "Kubranská, Billa", "Považská, kotolňa", "Biskupice, námestie", "Biskupice, LOT", "Na kameni"];
-function saveZones(){tr
+const OLD_V1_NAMES=["Gymnázium", "Hasičská", "Autobusová stanica", "Gen. M. R. Štefánika", "Legionárska", "Braneckého", "Obchodná akadémia", "Zimný štadión", "Považská", "Hodžova, kotolňa", "Žilinská", "Ivana Krasku", "Sihoť IV", "OC City Park", "Juh, Saratovská", "Cintorín Juh", "Mateja Bela", "Juh, Gen. Svobodu", "Pod Juhom", "Cintorínska", "D
