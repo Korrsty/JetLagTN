@@ -1013,7 +1013,7 @@ function showSeekerTab(t){
 $("sTabMap").onclick=()=>showSeekerTab("map");
 $("sTabQ").onclick=()=>showSeekerTab("questions");
 /* ---------- bus stops of Trenčín (city buses) ---------- */
-const BUS_OFF="bc_bus_off",ZONE_KEY="bc_stop_zones_v1",ZONE_M=400,ZONE_BLUE="#2f80ed";
+const BUS_OFF="bc_bus_off",ZONE_KEY="bc_stop_zones_v2",ZONE_KEY_V1="bc_stop_zones_v1",ZONE_M=400,ZONE_BLUE="#2f80ed";
 const STOPS=[
 [48.892319,18.036854,"Gymnázium"],
 [48.896111,18.04,"Hasičská"],
@@ -1058,14 +1058,25 @@ const STOPS=[
 [48.893611,18.065556,"Kubranská, Billa"],
 [48.896944,18.065,"Považská, kotolňa"],
 [48.877222,18.022222,"Biskupice, námestie"],
-[48.872778,18.021944,"Biskupice, LOT"],
-[48.899025,18.084689,"Na kameni"]
+[48.899025,18.084689,"Na kameni"],
+[48.8801888,18.0187452,"Biskupice, cintorín"],
+[48.8771343,18.0156562,"Biskupice, SOŠ LT"],
+[48.8839237,18.02323,"Karpatská"],
+[48.8827189,18.02533,"Jána Zemana"]
 ];
 M.stops=STOPS;M.showBus=true;M.zones=new Set();
 try{M.showBus=localStorage.getItem(BUS_OFF)!=="1"}catch(_){}
-try{const a=JSON.parse(localStorage.getItem(ZONE_KEY));if(Array.isArray(a))a.forEach(i=>{if(STOPS[i])M.zones.add(i)})}catch(_){}
+const OLD_V1_NAMES=["Gymnázium", "Hasičská", "Autobusová stanica", "Gen. M. R. Štefánika", "Legionárska", "Braneckého", "Obchodná akadémia", "Zimný štadión", "Považská", "Hodžova, kotolňa", "Žilinská", "Ivana Krasku", "Sihoť IV", "OC City Park", "Juh, Saratovská", "Cintorín Juh", "Mateja Bela", "Juh, Gen. Svobodu", "Pod Juhom", "Cintorínska", "Dlhé Hony", "Nemocnica", "Beckovská", "Tesco", "OC Laugaricio", "Pred poľom", "ZŠ Kubranská", "Kubrá, námestie", "28. októbra", "Soblahovská", "Inovecká, stred", "Inovecká", "Ku štvrtiam", "Za nemocnicou", "Dolný Šianec", "Električná ul. OÚNZ", "Lavičková", "Na Zongorke", "ZŠ Hodžova", "K výstavisku", "Kubranská, Billa", "Považská, kotolňa", "Biskupice, námestie", "Biskupice, LOT", "Na kameni"];
+function saveZones(){try{localStorage.setItem(ZONE_KEY,JSON.stringify([...M.zones].map(i=>STOPS[i][2])))}catch(_){}}
+(function loadZones(){
+  try{
+    let names=JSON.parse(localStorage.getItem(ZONE_KEY));
+    if(!Array.isArray(names)){const o=JSON.parse(localStorage.getItem(ZONE_KEY_V1));names=Array.isArray(o)?o.map(i=>OLD_V1_NAMES[i]).filter(Boolean):[]}
+    names.forEach(n=>{const i=STOPS.findIndex(s=>s[2]===n);if(i>=0)M.zones.add(i)});
+    saveZones();localStorage.removeItem(ZONE_KEY_V1);
+  }catch(_){}
+})();
 const escH=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-function saveZones(){try{localStorage.setItem(ZONE_KEY,JSON.stringify([...M.zones]))}catch(_){}}
 function busNote(t){const n=$("busNote");n.textContent=t||"";n.hidden=!t}
 function busUi(){$("bBus").textContent=M.showBus?"🚌 Hide bus stops":"🚌 Show bus stops";$("bZones").hidden=!M.zones.size}
 function busStatus(){busNote(M.showBus?STOPS.length+" bus stops. Tap a stop to mark the "+ZONE_M+" m area around it. Tap it again to remove it.":"")}
@@ -1097,31 +1108,4 @@ function drawBus(S){
     const on=M.zones.has(i);
     h+='<g transform="translate('+x.toFixed(1)+' '+y.toFixed(1)+')"><circle r="'+r.toFixed(1)+'" fill="#f7b64d" stroke="'+(on?ZONE_BLUE:"#fff")+'" stroke-width="'+(on?3:2.5)+'"/>'+
       (glyph?'<rect x="-5" y="-5.5" width="10" height="8.5" rx="2" fill="#263343"/><rect x="-3.5" y="-4" width="7" height="3.2" fill="#f7b64d"/><circle cx="-2.6" cy="4.2" r="1.3" fill="#263343"/><circle cx="2.6" cy="4.2" r="1.3" fill="#263343"/>':'')+'</g>';
-    if(on||M.z>=15)lab+='<text x="'+x.toFixed(1)+'" y="'+(y+r+14).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#263343" stroke="#fff" stroke-width="3.5" paint-order="stroke" font-family="Montserrat,system-ui,Arial,sans-serif">'+escH(st[2])+'</text>';
-  });
-  g.innerHTML=h+lab;
-}
-$("bBus").onclick=()=>{
-  M.showBus=!M.showBus;try{localStorage.setItem(BUS_OFF,M.showBus?"0":"1")}catch(_){}
-  busUi();busStatus();mapRender();
-};
-$("bZones").onclick=()=>{if(M.zones.size&&confirm("Remove all marked areas?")){M.zones.clear();saveZones();busUi();mapRender()}};
-busUi();
-let tab="cards";
-function mountMap(host){
-  const v=$("mapView");
-  if(v.parentNode!==host)host.appendChild(v);
-  v.hidden=false;
-  if(!mapReady){mapReady=true;initMap()}else mapResize();
-}
-function showTab(t){
-  tab=t;
-  $("gameTitle").textContent=t==="map"?"Hider map":"Hider deck";
-  $("cardsView").hidden=t!=="cards";
-  $("tabCards").classList.toggle("on",t==="cards");$("tabMap").classList.toggle("on",t==="map");
-  if(t==="map")mountMap($("game"));else $("mapView").hidden=true;
-}
-$("tabCards").onclick=()=>showTab("cards");
-$("tabMap").onclick=()=>showTab("map");
-$("draw").onclick=draw;
-$("shuff
+    if(o
