@@ -243,7 +243,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 // Runs on its own, so it still works if something in the main script fails.
-window.BUILD="20 · 11 Oct";
+window.BUILD="21 · 11 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "start"];
 window.repairApp=function(){
   window.__noUnloadPrompt=true;
   var jobs=[];
@@ -258,13 +258,14 @@ window.repairApp=function(){
   function banner(msg){
     if(document.getElementById("errbar"))return;
     var d=document.createElement("div");d.id="errbar";
-    d.textContent="Something went wrong (version "+window.BUILD+"): "+msg+" ";
+    d.textContent="Something went wrong (version "+window.BUILD+", "+(window.__steps||[]).length+"/"+window.__expected.length+" parts started): "+msg+" ";
     var b=document.createElement("button");b.textContent="Repair app";b.onclick=function(){window.repairApp()};
     d.appendChild(document.createElement("br"));d.appendChild(b);document.body.appendChild(d);
   }
   window.addEventListener("error",function(e){
     var m=e.message||"";
     if(/ResizeObserver/i.test(m))return;
+    window.__errs.push(m+(e.lineno?" (line "+e.lineno+")":""));
     if(!m||/^Script error/i.test(m))m="the app code was changed or blocked (\""+(m||"unknown")+"\")";
     banner(m+(e.lineno?" (line "+e.lineno+")":""));
   });
@@ -325,7 +326,9 @@ function build(){
 function rand(n){const a=new Uint32Array(1),lim=Math.floor(4294967296/n)*n;let x;do{crypto.getRandomValues(a);x=a[0]}while(x>=lim);return x%n}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
 const name=c=>c.k==="time"?c.m+" minute time bonus":POW[c.k].name;
-
+;(window.__steps=window.__steps||[]).push("data");
+</script>
+<script>
 /* ---------- card faces (SVG, 750x1050) ---------- */
 const hexP=d=>'<path d="'+d+'" fill="none" stroke="'+DARK+'" stroke-width="22" stroke-linejoin="round"/>';
 const HEX="M375 78L550 180V375L375 475L200 375V180Z";
@@ -392,7 +395,9 @@ function cardEl(c,small,pop){
 }
 function mkBtn(label,fn){const b=document.createElement("button");b.className="cardbtn";b.setAttribute("aria-label",label);b.onclick=fn;return b}
 const dim=el=>{el.classList.add("dimmed");return el};
-
+;(window.__steps=window.__steps||[]).push("faces");
+</script>
+<script>
 /* ---------- the game is saved after every move, so reloading changes nothing ---------- */
 const SAVE_KEY="bc_game_v1";
 function saveGame(){
@@ -415,7 +420,9 @@ function loadGame(){
 // extra friction for reloading (the saved game already makes a reload harmless)
 window.addEventListener("beforeunload",e=>{if(window.__noUnloadPrompt)return;e.preventDefault();e.returnValue=""});
 document.addEventListener("keydown",e=>{if(e.key==="F5"||((e.ctrlKey||e.metaKey)&&String(e.key).toLowerCase()==="r"))e.preventDefault()},true);
-
+;(window.__steps=window.__steps||[]).push("savegame");
+</script>
+<script>
 /* ---------- game logic ---------- */
 function reset(){deck=shuffle(build());hand=[];pending=[];sel=null;discarded=0;mode=null;limit=6;played=[];render()}
 function drawToHand(n){const g=deck.splice(0,Math.min(n,deck.length));g.forEach(c=>c.fresh=true);hand.push(...g)}
@@ -593,6 +600,9 @@ function openCard(c,o){
 function closeZoom(){$("zoom").hidden=true}
 $("zoom").onclick=e=>{if(e.target===$("zoom"))closeZoom()};
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeZoom();closeFx()}});
+;(window.__steps=window.__steps||[]).push("logic");
+</script>
+<script>
 /* ---------- celebrate + share ---------- */
 const player=()=>($("player").value||"").trim();
 const mkEntry=(k,code)=>({n:POW[k].name,code:code||"",card:{k},t:Date.now(),p:player()});
@@ -725,6 +735,9 @@ function initShare(){
   const m=location.hash.match(/^#played=(.+)$/);
   if(m){try{const o=b64d(m[1]);if(POW[o.k])celebrate({card:{k:o.k},n:POW[o.k].name,code:o.c||"",t:o.t||Date.now(),p:o.p||""},true)}catch(_){}}
 }
+;(window.__steps=window.__steps||[]).push("share");
+</script>
+<script>
 function show(id){
   for(const n of ["home","game","seeker"])$(n).hidden=n!==id;
   $("who").textContent="Playing as hider"+(player()?" · "+player():"");
@@ -736,6 +749,9 @@ $("goHider").onclick=()=>show("game");
 $("goSeeker").onclick=()=>show("seeker");
 $("goHome").onclick=()=>show("home");
 $("seekerBack").onclick=()=>show("home");
+;(window.__steps=window.__steps||[]).push("home");
+</script>
+<script>
 /* ---------- map of Trencin ---------- */
 const TILE_URL="https://tile.openstreetmap.org/";
 const HOME=[48.89194,18.03667];
@@ -918,6 +934,9 @@ function initMap(){
   loadBorder();
   busStatus();
 }
+;(window.__steps=window.__steps||[]).push("map");
+</script>
+<script>
 /* ---------- drawing on the map ---------- */
 const INK_KEY="bc_ink_v1",INK_COLORS=["#263343","#e8383d","#eb7944","#f7b64d"];
 M.strokes=[];M.cur=null;M.drawOn=false;M.pen=INK_COLORS[0];
@@ -961,6 +980,9 @@ $("dDone").onclick=()=>{cancelStroke();M.drawOn=false;inkUi()};
 $("dUndo").onclick=()=>{if(M.strokes.length){M.strokes.pop();saveInk();mapRender()}};
 $("dClear").onclick=()=>{if(M.strokes.length&&confirm("Erase everything you drew on the map?")){M.strokes=[];saveInk();mapRender()}};
 inkUi();
+;(window.__steps=window.__steps||[]).push("ink");
+</script>
+<script>
 /* ---------- my location (GPS, only on this device) ---------- */
 M.me=null;M.watch=null;M.follow=false;
 function gpsNote(t){const n=$("gpsNote");n.textContent=t||"";n.hidden=!t}
@@ -1007,6 +1029,9 @@ function stopGps(keepNote){
 }
 $("bGps").onclick=()=>{M.watch===null?startGps():stopGps()};
 $("mLoc").onclick=()=>{if(M.me){M.follow=true;centerOnMe(16);meUi()}};
+;(window.__steps=window.__steps||[]).push("gps");
+</script>
+<script>
 /* ---------- seeker questions ---------- */
 const QS=[
 {id:"match",name:"Matching",tpl:"Is your nearest _______ the same as my nearest _______?",items:["Transit Line","Station’s Name Length","Street or Path","District","Park","Museum","Amusement park","Golf course","Movie theater","Library"]},
@@ -1053,6 +1078,9 @@ function showSeekerTab(t){
 }
 $("sTabMap").onclick=()=>showSeekerTab("map");
 $("sTabQ").onclick=()=>showSeekerTab("questions");
+;(window.__steps=window.__steps||[]).push("questions");
+</script>
+<script>
 /* ---------- bus stops of Trenčín (city buses) ---------- */
 const BUS_OFF="bc_bus_off",ZONE_KEY="bc_stop_zones_v2",ZONE_KEY_V1="bc_stop_zones_v1",ZONE_M=400,ZONE_BLUE="#2f80ed";
 const STOPS=[
@@ -1107,4 +1135,91 @@ const STOPS=[
 ];
 M.stops=STOPS;M.showBus=true;M.zones=new Set();
 try{M.showBus=localStorage.getItem(BUS_OFF)!=="1"}catch(_){}
-const OLD_V1_NAMES=["Gymnázium", "Hasičská", "Autobusová stanica", "Gen. M. R. Štefánika", "Legionárska", "Braneckého", "Obchodná akadémia", "Zimný štadión", "Považská", "Hodžova, kotolňa", "Žilinská", "Ivana Krasku", "Sihoť IV", "OC City Park", "Juh, Saratovská", "Cintorín Juh", "Mateja Bela", "Juh, Gen. Svobodu", "Pod Juhom", "Cintorínska", "D
+const OLD_V1_NAMES=["Gymnázium", "Hasičská", "Autobusová stanica", "Gen. M. R. Štefánika", "Legionárska", "Braneckého", "Obchodná akadémia", "Zimný štadión", "Považská", "Hodžova, kotolňa", "Žilinská", "Ivana Krasku", "Sihoť IV", "OC City Park", "Juh, Saratovská", "Cintorín Juh", "Mateja Bela", "Juh, Gen. Svobodu", "Pod Juhom", "Cintorínska", "Dlhé Hony", "Nemocnica", "Beckovská", "Tesco", "OC Laugaricio", "Pred poľom", "ZŠ Kubranská", "Kubrá, námestie", "28. októbra", "Soblahovská", "Inovecká, stred", "Inovecká", "Ku štvrtiam", "Za nemocnicou", "Dolný Šianec", "Električná ul. OÚNZ", "Lavičková", "Na Zongorke", "ZŠ Hodžova", "K výstavisku", "Kubranská, Billa", "Považská, kotolňa", "Biskupice, námestie", "Biskupice, LOT", "Na kameni"];
+function saveZones(){try{localStorage.setItem(ZONE_KEY,JSON.stringify([...M.zones].map(i=>STOPS[i][2])))}catch(_){}}
+(function loadZones(){
+  try{
+    let names=JSON.parse(localStorage.getItem(ZONE_KEY));
+    if(!Array.isArray(names)){const o=JSON.parse(localStorage.getItem(ZONE_KEY_V1));names=Array.isArray(o)?o.map(i=>OLD_V1_NAMES[i]).filter(Boolean):[]}
+    names.forEach(n=>{const i=STOPS.findIndex(s=>s[2]===n);if(i>=0)M.zones.add(i)});
+    saveZones();localStorage.removeItem(ZONE_KEY_V1);
+  }catch(_){}
+})();
+const escH=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function busNote(t){const n=$("busNote");n.textContent=t||"";n.hidden=!t}
+function busUi(){$("bBus").textContent=M.showBus?"🚌 Hide bus stops":"🚌 Show bus stops";$("bZones").hidden=!M.zones.size}
+function busStatus(){busNote(M.showBus?STOPS.length+" bus stops. Tap a stop to mark the "+ZONE_M+" m area around it. Tap it again to remove it.":"")}
+function stopAt(px,py){
+  if(!M.showBus)return -1;
+  const S=256*2**M.z;let best=-1,bd=20;
+  STOPS.forEach((st,i)=>{
+    const d=Math.hypot((mx(st[1])-M.cx)*S+M.w/2-px,(my(st[0])-M.cy)*S+M.h/2-py);
+    if(d<bd){bd=d;best=i}
+  });
+  return best;
+}
+function drawBus(S){
+  let zones="";
+  for(const i of M.zones){
+    const st=STOPS[i],x=(mx(st[1])-M.cx)*S+M.w/2,y=(my(st[0])-M.cy)*S+M.h/2;
+    const r=ZONE_M/(156543.03392*Math.cos(st[0]*Math.PI/180)/2**M.z);
+    if(x+r<0||x-r>M.w||y+r<0||y-r>M.h)continue;
+    zones+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+r.toFixed(1)+'" fill="url(#xhatch)" stroke="'+ZONE_BLUE+'" stroke-width="2.5"/>';
+  }
+  $("mapZones").innerHTML=zones;
+  const g=$("mapBus");
+  if(!M.showBus){g.innerHTML="";return}
+  const r=clampN(4+(M.z-11)*1.3,5,11),glyph=r>=9;
+  let h="",lab="";
+  STOPS.forEach((st,i)=>{
+    const x=(mx(st[1])-M.cx)*S+M.w/2,y=(my(st[0])-M.cy)*S+M.h/2;
+    if(x<-30||x>M.w+30||y<-30||y>M.h+30)return;
+    const on=M.zones.has(i);
+    h+='<g transform="translate('+x.toFixed(1)+' '+y.toFixed(1)+')"><circle r="'+r.toFixed(1)+'" fill="#f7b64d" stroke="'+(on?ZONE_BLUE:"#fff")+'" stroke-width="'+(on?3:2.5)+'"/>'+
+      (glyph?'<rect x="-5" y="-5.5" width="10" height="8.5" rx="2" fill="#263343"/><rect x="-3.5" y="-4" width="7" height="3.2" fill="#f7b64d"/><circle cx="-2.6" cy="4.2" r="1.3" fill="#263343"/><circle cx="2.6" cy="4.2" r="1.3" fill="#263343"/>':'')+'</g>';
+    if(on||M.z>=15)lab+='<text x="'+x.toFixed(1)+'" y="'+(y+r+14).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#263343" stroke="#fff" stroke-width="3.5" paint-order="stroke" font-family="Montserrat,system-ui,Arial,sans-serif">'+escH(st[2])+'</text>';
+  });
+  g.innerHTML=h+lab;
+}
+$("bBus").onclick=()=>{
+  M.showBus=!M.showBus;try{localStorage.setItem(BUS_OFF,M.showBus?"0":"1")}catch(_){}
+  busUi();busStatus();mapRender();
+};
+$("bZones").onclick=()=>{if(M.zones.size&&confirm("Remove all marked areas?")){M.zones.clear();saveZones();busUi();mapRender()}};
+busUi();
+;(window.__steps=window.__steps||[]).push("bus");
+</script>
+<script>
+let tab="cards";
+function mountMap(host){
+  const v=$("mapView");
+  if(v.parentNode!==host)host.appendChild(v);
+  v.hidden=false;
+  if(!mapReady){mapReady=true;initMap()}else mapResize();
+}
+function showTab(t){
+  tab=t;
+  $("gameTitle").textContent=t==="map"?"Hider map":"Hider deck";
+  $("cardsView").hidden=t!=="cards";
+  $("tabCards").classList.toggle("on",t==="cards");$("tabMap").classList.toggle("on",t==="map");
+  if(t==="map")mountMap($("game"));else $("mapView").hidden=true;
+}
+$("tabCards").onclick=()=>showTab("cards");
+$("tabMap").onclick=()=>showTab("map");
+$("draw").onclick=draw;
+$("shuffle").onclick=()=>{if(confirm("Start a new game? Your hand is cleared and the deck is reshuffled."))reset()};
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space"&&!$("game").hidden&&!$("cardsView").hidden&&!["SELECT","BUTTON","INPUT"].includes(document.activeElement.tagName)){e.preventDefault();draw()}
+});
+if(!loadGame())reset();
+initShare();
+window.__mainReady=true;
+;(window.__steps=window.__steps||[]).push("start");
+</script>
+<script>
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>
