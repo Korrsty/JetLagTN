@@ -57,6 +57,10 @@
         var d=f.contentDocument,w=f.contentWindow;
         line("App in a test frame: version line shows \""+((d.getElementById("ver")||{}).textContent||"none")+"\"");
         line("  app code started: "+(w.__mainReady?"yes":"NO"),w.__mainReady?"ok":"bad");
+        var steps=w.__steps||[],exp=w.__expected||[];
+        var miss=exp.filter(function(n){return steps.indexOf(n)<0});
+        line("  app parts that ran: "+steps.length+" of "+exp.length+(miss.length?"  | NOT run: "+miss.join(", "):""),miss.length?"bad":"ok");
+        if(w.__errs&&w.__errs.length)line("  errors reported by the app: "+w.__errs.join("  ||  ").slice(0,400),"bad");
         var eb=d.getElementById("errbar");if(eb)line("  app error message: "+eb.textContent.replace(/\s+/g," ").slice(0,160),"bad");
         d.getElementById("goHider").click();var h=!d.getElementById("game").hidden;
         line("  Play as hider button: "+(h?"WORKS":"DOES NOTHING"),h?"ok":"bad");
