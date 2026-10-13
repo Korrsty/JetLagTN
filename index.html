@@ -101,6 +101,7 @@ input::placeholder{color:var(--muted)}
 .ver .link{background:none;border:0;color:var(--muted);text-decoration:underline;padding:4px;font:inherit;cursor:pointer}
 #errbar{position:fixed;left:8px;right:8px;bottom:8px;z-index:300;background:#e8383d;color:#fff;border-radius:10px;padding:10px 12px;font:13px/1.35 system-ui,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.5)}
 #errbar button{margin-top:8px;background:#fff;color:#263343;border:0;border-radius:8px;padding:8px 14px;font:700 13px system-ui,sans-serif;cursor:pointer}
+.qa{color:var(--orange);font-size:.8rem;display:block}
 .tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
 .card.dimmed{opacity:.4}
 .card svg{position:absolute;inset:0;width:100%;height:100%}
@@ -220,11 +221,11 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="mapView" class="view" hidden>
   <div id="mapBox" aria-label="Map of Trenčín">
     <div id="mapTiles"></div>
-    <svg id="mapSvg"><defs><pattern id="xhatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="rgba(47,128,237,.2)"/><path d="M0 0H14M0 0V14" stroke="#2f80ed" stroke-width="1.8" opacity=".8" fill="none"/></pattern></defs><path id="mapMask" fill="rgba(18,26,38,.5)" fill-rule="evenodd"/><path id="mapLine" fill="none" stroke="#e8383d" stroke-width="3" stroke-linejoin="round"/><g id="mapZones"></g><g id="mapBus"></g><g id="mapInk" fill="none" stroke-linecap="round" stroke-linejoin="round"></g><g id="mapMe"></g></svg>
+    <svg id="mapSvg"><defs><pattern id="xhatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="rgba(47,128,237,.2)"/><path d="M0 0H14M0 0V14" stroke="#2f80ed" stroke-width="1.8" opacity=".8" fill="none"/></pattern><linearGradient id="rdGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4b6f7d"/><stop offset="1" stop-color="#1a4a68"/></linearGradient><pattern id="rdStripes" width="11.6" height="11.6" patternUnits="userSpaceOnUse" patternTransform="rotate(27)"><rect x="1" y="0" width="4.8" height="11.6" fill="rgba(8,28,46,.34)"/></pattern></defs><path id="mapMask" fill="rgba(18,26,38,.5)" fill-rule="evenodd"/><path id="mapLine" fill="none" stroke="#e8383d" stroke-width="3" stroke-linejoin="round"/><g id="mapRadar"></g><g id="mapZones"></g><g id="mapBus"></g><g id="mapInk" fill="none" stroke-linecap="round" stroke-linejoin="round"></g><g id="mapMe"></g></svg>
     <div class="mapctl"><button id="mZin" aria-label="Zoom in">+</button><button id="mZout" aria-label="Zoom out">−</button><button id="mFit" aria-label="Show the whole playing area">⌖</button><button id="mLoc" hidden aria-label="Follow my location">◎</button></div>
     <a class="mapat" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
   </div>
-  <div class="mapbar" id="mapTools"><button class="ghost" id="bDraw">✏️ Draw on map</button><button class="ghost" id="bGps">📍 My location</button><button class="ghost" id="bBus">🚌 Hide bus stops</button><button class="ghost" id="bZones" hidden>Clear marked areas</button></div>
+  <div class="mapbar" id="mapTools"><button class="ghost" id="bDraw">✏️ Draw on map</button><button class="ghost" id="bGps">📍 My location</button><button class="ghost" id="bBus">🚌 Hide bus stops</button><button class="ghost" id="bZones" hidden>Clear marked areas</button><button class="ghost" id="bRadar" hidden>Clear radar areas</button></div>
   <div class="mapbar" id="drawBar" hidden>
     <div class="drawmsg">One finger draws. Two fingers move and zoom the map.</div>
     <span id="swatches" style="display:flex;gap:8px"></span>
@@ -243,7 +244,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 // Runs on its own, so it still works if something in the main script fails.
-window.BUILD="21 · 11 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "start"];
+window.BUILD="22 · 12 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "radar", "start"];
 window.repairApp=function(){
   window.__noUnloadPrompt=true;
   var jobs=[];
@@ -860,9 +861,7 @@ function mapDraw(){
     }
     $("mapMask").setAttribute("d",d);$("mapLine").setAttribute("d",ln);
   }
-  drawBus(S);
-  drawInk(S);
-  drawMe(S);
+  for(const f of ["drawRadar","drawBus","drawInk","drawMe"]){try{if(typeof window[f]==="function")window[f](S)}catch(_){}}
   mapPurge();
 }
 function zoomAbout(px,py,dz){
@@ -1058,13 +1057,15 @@ function renderQs(){
       const cb=document.createElement("input");cb.type="checkbox";cb.checked=qDone.has(key);
       const n=document.createElement("span");n.className="qn";n.textContent=(i+1)+".";
       const tx=document.createElement("span");tx.className="qt";tx.textContent=t;
-      cb.onchange=()=>{cb.checked?qDone.add(key):qDone.delete(key);saveQ();renderQs()};
+      const rIt=typeof R!=="undefined"?R.items.find(x=>x.k===key):null;
+      if(rIt){const q=document.createElement("span");q.className="qa";q.textContent=rIt.out?"Hider is within. Everything outside is crossed out.":"Hider is NOT within. The circle is crossed out.";tx.appendChild(q)}
+      cb.onchange=()=>{if(c.id==="radar"&&typeof radarToggle==="function"){radarToggle(i,cb.checked,key);return}cb.checked?qDone.add(key):qDone.delete(key);saveQ();renderQs()};
       lab.append(cb,n,tx);sec.appendChild(lab);
     });
     host.appendChild(sec);
   }
   const r=document.createElement("button");r.className="ghost";r.textContent="Clear all ticks";
-  r.onclick=()=>{if(qDone.size&&confirm("Un-tick every question?")){qDone.clear();saveQ();renderQs()}};
+  r.onclick=()=>{if(qDone.size&&confirm("Un-tick every question?")){qDone.clear();saveQ();if(typeof radarClear==="function")radarClear();renderQs()}};
   host.appendChild(r);
 }
 let sTab="map";
@@ -1188,6 +1189,112 @@ $("bBus").onclick=()=>{
 $("bZones").onclick=()=>{if(M.zones.size&&confirm("Remove all marked areas?")){M.zones.clear();saveZones();busUi();mapRender()}};
 busUi();
 ;(window.__steps=window.__steps||[]).push("bus");
+</script>
+<script>
+/* ---------- radar question: cross out the radius (or everything outside it) ---------- */
+const R_KEY="bc_radar_v1",R={items:[]};
+try{const a=JSON.parse(localStorage.getItem(R_KEY));if(Array.isArray(a))R.items=a.filter(x=>x&&typeof x.k==="string"&&isFinite(x.lat)&&isFinite(x.lon)&&x.r>0)}catch(_){}
+function saveRadar(){try{localStorage.setItem(R_KEY,JSON.stringify(R.items))}catch(_){}}
+const fmtDist=r=>r>=1000&&r%1000===0?(r/1000)+" km":r+" m";
+const unmy=y=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*y)));
+function radarUi(){$("bRadar").hidden=!R.items.length}
+function radarPx(it,S){
+  const x=(mx(it.lon)-M.cx)*S+M.w/2,y=(my(it.lat)-M.cy)*S+M.h/2;
+  return {x,y,r:it.r/(156543.03392*Math.cos(it.lat*Math.PI/180)/2**M.z)};
+}
+function drawRadar(S){
+  const g=$("mapRadar");let h="";
+  for(const it of R.items){
+    const c=radarPx(it,S),x=c.x,y=c.y,r=c.r;
+    if(!it.out&&(x+r<0||x-r>M.w||y+r<0||y-r>M.h))continue;
+    const ring="M"+(x-r).toFixed(1)+" "+y.toFixed(1)+"A"+r.toFixed(1)+" "+r.toFixed(1)+" 0 1 0 "+(x+r).toFixed(1)+" "+y.toFixed(1)+"A"+r.toFixed(1)+" "+r.toFixed(1)+" 0 1 0 "+(x-r).toFixed(1)+" "+y.toFixed(1)+"Z";
+    const d=it.out?"M0 0H"+M.w+"V"+M.h+"H0Z"+ring:ring,rule=it.out?' fill-rule="evenodd"':"";
+    h+='<path d="'+d+'"'+rule+' fill="url(#rdGrad)" fill-opacity=".84"/><path d="'+d+'"'+rule+' fill="url(#rdStripes)"/>'+
+       '<path d="'+ring+'" fill="none" stroke="#0e4a6e" stroke-width="3"/>'+
+       '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="6" fill="#fff" stroke="#0e4a6e" stroke-width="3"/>';
+    if(r>34)h+='<text x="'+x.toFixed(1)+'" y="'+(y+24).toFixed(1)+'" text-anchor="middle" font-size="13" font-weight="700" fill="#263343" stroke="#fff" stroke-width="3.5" paint-order="stroke" font-family="Montserrat,system-ui,Arial,sans-serif">Radar '+fmtDist(it.r)+'</text>';
+  }
+  g.innerHTML=h;
+}
+/* small full-screen dialogs */
+function rdlg(build){
+  return new Promise(res=>{
+    const o=document.createElement("div");
+    o.style.cssText="position:fixed;inset:0;z-index:80;background:rgba(10,15,22,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;color:#e8e8e8";
+    const done=v=>{o.remove();res(v)};
+    o.onclick=e=>{if(e.target===o)done(null)};
+    build(o,done);document.body.appendChild(o);
+  });
+}
+function rText(o,t,small){const d=document.createElement("div");d.textContent=t;d.style.cssText=small?"color:#a3abb5;font-size:.9rem;max-width:340px":"font-size:1.1rem;font-weight:700;max-width:340px";o.appendChild(d);return d}
+function rBtn(o,label,cls,fn){const b=document.createElement("button");b.textContent=label;b.className=cls;b.style.maxWidth="340px";b.style.width="100%";b.onclick=fn;o.appendChild(b);return b}
+function askAnswer(r){
+  const L=fmtDist(r);
+  return rdlg((o,done)=>{
+    rText(o,"Radar "+L+": what did the hider answer?");
+    rBtn(o,"No. The hider is NOT within "+L,"primary",()=>done("no"));
+    rBtn(o,"Yes. The hider IS within "+L,"ghost",()=>done("yes"));
+    rText(o,"No crosses out the circle. Yes crosses out everything outside it.",true);
+    rBtn(o,"Cancel","ghost",()=>done(null));
+  });
+}
+function askRadius(){
+  return rdlg((o,done)=>{
+    rText(o,"Radar distance");
+    const row=document.createElement("div");row.style.cssText="display:flex;gap:8px;width:100%;max-width:340px";
+    const inp=document.createElement("input");inp.type="number";inp.min="1";inp.step="any";inp.placeholder="e.g. 500";inp.style.cssText="flex:1;font-size:1.1rem;text-align:center";
+    const sel=document.createElement("select");sel.innerHTML='<option value="1">m</option><option value="1000">km</option>';sel.style.fontSize="1.1rem";
+    row.append(inp,sel);o.appendChild(row);
+    const err=rText(o,"",true);err.style.color="#ff9c8f";
+    rBtn(o,"Use this distance","primary",()=>{const m=parseFloat(inp.value)*parseFloat(sel.value);if(!(m>=50&&m<=20000)){err.textContent="Enter a distance between 50 m and 20 km.";return}done(Math.round(m))});
+    rBtn(o,"Cancel","ghost",()=>done(null));
+    setTimeout(()=>inp.focus(),50);
+  });
+}
+async function radarCenter(){
+  if(M.me)return {lat:M.me.lat,lon:M.me.lon};
+  const wait=document.createElement("div");
+  wait.style.cssText="position:fixed;inset:0;z-index:80;background:rgba(10,15,22,.82);display:flex;align-items:center;justify-content:center;color:#e8e8e8;font:700 1.1rem system-ui,sans-serif";
+  wait.textContent="Finding your location...";document.body.appendChild(wait);
+  const pos=await new Promise(res=>{
+    if(!navigator.geolocation||window.isSecureContext===false)return res(null);
+    navigator.geolocation.getCurrentPosition(p=>res(p),()=>res(null),{enableHighAccuracy:true,timeout:9000,maximumAge:5000});
+  });
+  wait.remove();
+  if(pos)return {lat:pos.coords.latitude,lon:pos.coords.longitude};
+  const ok=await rdlg((o,done)=>{
+    rText(o,"Couldn't get your location.");
+    rText(o,"Use the middle of the map as the radar center instead? (Turn on My location on the map to use your real position.)",true);
+    rBtn(o,"Use the middle of the map","primary",()=>done(true));
+    rBtn(o,"Cancel","ghost",()=>done(false));
+  });
+  return ok?{lat:unmy(M.cy),lon:M.cx*360-180}:null;
+}
+function focusRadar(it){
+  M.cx=mx(it.lon);M.cy=my(it.lat);
+  const px=0.32*Math.min(M.w||360,M.h||500);
+  M.z=Math.log2(156543.03392*Math.cos(it.lat*Math.PI/180)*px/it.r);
+  M.moved=true;mapClamp();mapRender();
+}
+async function radarToggle(i,checked,key){
+  if(!checked){qDone.delete(key);saveQ();R.items=R.items.filter(x=>x.k!==key);saveRadar();radarUi();renderQs();mapRender();return}
+  let r=[400,800,1600][i];
+  if(!r){r=await askRadius();if(!r){renderQs();return}}
+  const c=await radarCenter();if(!c){renderQs();return}
+  const ans=await askAnswer(r);if(!ans){renderQs();return}
+  const it={k:key,lat:c.lat,lon:c.lon,r,out:ans==="yes",t:Date.now()};
+  R.items=R.items.filter(x=>x.k!==key);R.items.push(it);saveRadar();
+  qDone.add(key);saveQ();radarUi();renderQs();
+  if(typeof showSeekerTab==="function")showSeekerTab("map");
+  focusRadar(it);
+}
+function radarClear(){R.items=[];saveRadar();radarUi();mapRender()}
+$("bRadar").onclick=()=>{
+  if(!R.items.length||!confirm("Remove all radar areas?"))return;
+  for(const it of R.items)qDone.delete(it.k);saveQ();radarClear();renderQs();
+};
+radarUi();
+;(window.__steps=window.__steps||[]).push("radar");
 </script>
 <script>
 let tab="cards";
