@@ -266,6 +266,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
   <p class="sub" id="gpsNote" hidden></p>
   <div class="legend" id="lineLegend" hidden></div>
   <p class="sub" id="lineNote" hidden></p>
+  <button class="ghost" id="lineRetry" hidden style="margin:0 0 10px">🔁 Try again</button>
   <p class="sub" id="busNote" hidden></p>
   <p class="sub" id="mapNote"></p>
 </div>
@@ -277,7 +278,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 // Runs on its own, so it still works if something in the main script fails.
-window.BUILD="26 · 15 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "lines", "radar", "polish", "start"];
+window.BUILD="27 · 15 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "lines", "radar", "polish", "start"];
 window.repairApp=function(){
   window.__noUnloadPrompt=true;
   var jobs=[];
@@ -1236,11 +1237,13 @@ busUi();
 </script>
 <script>
 /* ---------- city bus lines (OpenStreetMap "MHD Trenčín" routes, saved on this device) ---------- */
-const LN_KEY="bc_lines_v1",LN_OFF="bc_lines_off_v1",LN_SHOW="bc_lines_show_v1",LN_MINZ=13;
+const LN_KEY="bc_lines_v2",LN_OFF="bc_lines_off_v1",LN_SHOW="bc_lines_show_v1";
 const LN={lines:{},off:new Set(),show:true};
 try{LN.show=localStorage.getItem(LN_SHOW)!=="0"}catch(_){}
 try{const a=JSON.parse(localStorage.getItem(LN_OFF));if(Array.isArray(a))LN.off=new Set(a)}catch(_){}
-const LN_BOX=[HOME[0]-.12,HOME[1]-.2,HOME[0]+.12,HOME[1]+.2];
+const _pb=bboxOf(PLAY_BORDER);                                   // [minLon,minLat,maxLon,maxLat]
+const LN_BOX=[_pb[1]-.02,_pb[0]-.03,_pb[3]+.02,_pb[2]+.03];        // south, west, north, east
+const lnMinZ=()=>(M.zFit||12)+0.3;
 const lnColor=r=>{const n=parseInt(r,10),h=isNaN(n)?(String(r).charCodeAt(0)*53)%360:(n*137.5)%360;return "hsl("+Math.round(h)+",72%,42%)"};
 const lnY2Lat=y=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*y)));
 function lnNote(t){const n=$("lineNote");n.textContent=t||"";n.hidden=!t}
@@ -1263,40 +1266,55 @@ function dpSimplify(pts,eps){
 }
 // keep the numbered city lines; the P and N lines are left out on purpose
 function parseLines(j){
-  const out={};
+  const out={};let routes=0;
   for(const rel of j.elements||[]){
     if(rel.type!=="relation")continue;
-    const t=rel.tags||{},ref=String(t.ref||"").trim();
-    if(!ref||/^[PN]/i.test(ref))continue;
-    if(!(/MHD\s*Tren/i.test(t.network||"")||/Transdev/i.test(t.operator||"")))continue;
+    const t=rel.tags||{};routes++;
+    let ref=String(t.ref||"").trim();
+    if(!ref){const m=/^\s*Bus\s+([^:\s]+)\s*:/i.exec(t.name||"");if(m)ref=m[1]}
+    if(!/^\d{1,2}[A-Za-z]?$/.test(ref)||/^[PN]/i.test(ref))continue;     // numbered lines only, no P / N
+    if(t.network&&!/Tren/i.test(t.network))continue;                      // another town's lines
     const e=out[ref]||(out[ref]={name:t.name||("Bus "+ref),ways:[],seen:{}});
     for(const m of rel.members||[]){
       if(m.type!=="way"||!m.geometry||/platform|stop/i.test(m.role||""))continue;
       if(e.seen[m.ref])continue;e.seen[m.ref]=1;
-      const s=dpSimplify(m.geometry.map(g=>[+g.lat.toFixed(5),+g.lon.toFixed(5)]),0.00003);
-      if(s.length>1)e.ways.push(s);
+      const g=m.geometry.map(x=>[+x.lat.toFixed(5),+x.lon.toFixed(5)]);
+      if(!g.some(p=>p[0]>LN_BOX[0]&&p[0]<LN_BOX[2]&&p[1]>LN_BOX[1]&&p[1]<LN_BOX[3]))continue;   // far from the playing area
+      const sg=dpSimplify(g,0.00003);
+      if(sg.length>1)e.ways.push(sg);
     }
   }
   for(const k in out){delete out[k].seen;if(!out[k].ways.length)delete out[k]}
-  return out;
+  return {lines:out,routes};
 }
 async function fetchLines(){
-  const bb="("+LN_BOX.join(",")+")";
-  const q='[out:json][timeout:60];(relation["route"="bus"]["network"~"MHD Tren",i]'+bb+';relation["route"="bus"]["operator"="Transdev"]'+bb+';);out geom;';
-  for(const base of ["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"]){
-    try{
-      const c=new AbortController(),t=setTimeout(()=>c.abort(),50000);
-      const r=await fetch(base+"?data="+encodeURIComponent(q),{signal:c.signal});clearTimeout(t);
-      if(!r.ok)continue;
-      const L=parseLines(await r.json());if(Object.keys(L).length)return L;
-    }catch(_){}
+  const bb="("+LN_BOX.join(",")+")",problems=[];
+  const queries=[
+    '[out:json][timeout:90];relation["route"="bus"]["ref"~"^[0-9]{1,2}[A-Za-z]?$"]'+bb+';out geom;',
+    '[out:json][timeout:90];relation["route"="bus"]'+bb+';out geom;'
+  ];
+  const servers=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter","https://overpass.private.coffee/api/interpreter"];
+  let seen=0;
+  for(const q of queries){
+    for(const base of servers){
+      const host=base.split("/")[2];
+      try{
+        const c=new AbortController(),t=setTimeout(()=>c.abort(),60000);
+        const r=await fetch(base+"?data="+encodeURIComponent(q),{signal:c.signal});clearTimeout(t);
+        if(!r.ok){problems.push(host+": HTTP "+r.status);continue}
+        const res=parseLines(await r.json());seen=Math.max(seen,res.routes);
+        if(Object.keys(res.lines).length)return {lines:res.lines};
+        problems.push(host+": "+res.routes+" routes, none usable");
+      }catch(e){problems.push(host+": "+(e&&e.name==="AbortError"?"too slow":"no connection"))}
+    }
   }
-  return null;
+  return {lines:null,problems:problems.slice(0,4).join(" | "),seen};
 }
 function lnPrep(){for(const r in LN.lines)for(const w of LN.lines[r].ways){let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const p of w){a=Math.min(a,p[0]);c=Math.max(c,p[0]);b=Math.min(b,p[1]);d=Math.max(d,p[1])}w.bb=[a,b,c,d]}}
 function lnStatus(){
   const n=Object.keys(LN.lines).length;
-  lnNote(LN.show&&n?"🚍 "+n+" city bus lines (from OpenStreetMap). Zoom in to see them. Tap a number to hide or show a line.":"");
+  $("lineRetry").hidden=true;
+  lnNote(LN.show&&n?"🚍 "+n+" city bus lines (from OpenStreetMap). Zoom in a little to see them. Tap a number to hide or show a line.":"");
   lnLegend();
 }
 function lnLegend(){
@@ -1313,16 +1331,20 @@ async function loadLines(){
   let c=null;try{c=JSON.parse(localStorage.getItem(LN_KEY))}catch(_){}
   if(c&&c.lines&&Object.keys(c.lines).length){LN.lines=c.lines;lnPrep();lnStatus();mapRender();if(Date.now()-c.t<45*864e5)return}
   else lnNote("🚍 Loading bus lines...");
-  const L=await fetchLines();
-  if(L){LN.lines=L;lnPrep();try{localStorage.setItem(LN_KEY,JSON.stringify({t:Date.now(),lines:L}))}catch(_){}lnStatus();mapRender()}
-  else if(!Object.keys(LN.lines).length)lnNote("🚍 Bus lines need internet the first time. They are then saved on this device.");
+  $("lineRetry").hidden=true;
+  const res=await fetchLines();
+  if(res.lines){LN.lines=res.lines;lnPrep();try{localStorage.setItem(LN_KEY,JSON.stringify({t:Date.now(),lines:res.lines}))}catch(_){}lnStatus();mapRender()}
+  else if(!Object.keys(LN.lines).length){
+    lnNote("🚍 Couldn't load the bus lines. This needs internet the first time (then they're saved). ("+res.problems+")");
+    $("lineRetry").hidden=false;
+  }
 }
 function drawLines(S){
   const g=$("mapLines");
-  if(!LN.show||M.z<LN_MINZ){g.innerHTML="";return}
+  if(!LN.show||M.z<lnMinZ()){g.innerHTML="";return}
   const refs=Object.keys(LN.lines).filter(r=>!LN.off.has(r)).sort(lnSort);
   if(!refs.length){g.innerHTML="";return}
-  const w=Math.min(7,3+(M.z-LN_MINZ)*0.9),step=M.z<14.5?3:1;
+  const w=Math.min(7,3.2+(M.z-lnMinZ())*0.9),step=M.z<14.5?3:1;
   const x0=(M.cx-M.w/2/S)*360-180,x1=(M.cx+M.w/2/S)*360-180,la1=lnY2Lat(M.cy-M.h/2/S),la0=lnY2Lat(M.cy+M.h/2/S);
   const X=lon=>(mx(lon)-M.cx)*S+M.w/2,Y=lat=>(my(lat)-M.cy)*S+M.h/2;
   let cas="",col="",lab="";
@@ -1344,6 +1366,7 @@ function drawLines(S){
   g.innerHTML='<g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-opacity=".8" stroke-width="'+(w+2.6).toFixed(1)+'">'+cas+'</g><g stroke-opacity=".92" stroke-width="'+w.toFixed(1)+'">'+col+'</g></g>'+lab;
 }
 function lnUi(){$("bLines").textContent=LN.show?"🚍 Hide bus lines":"🚍 Show bus lines"}
+$("lineRetry").onclick=()=>{try{localStorage.removeItem(LN_KEY)}catch(_){}LN.lines={};loadLines()};
 $("bLines").onclick=()=>{
   LN.show=!LN.show;try{localStorage.setItem(LN_SHOW,LN.show?"1":"0")}catch(_){}
   lnUi();
