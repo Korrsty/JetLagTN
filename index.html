@@ -128,6 +128,9 @@ h2{letter-spacing:.01em}
 .card:active{transform:scale(.98)}
 @media (prefers-reduced-motion:reduce){button,.card,#toast,.qbar i{transition:none}}
 @media (hover:none){.hint{display:none}}
+.legend{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;width:100%;max-width:760px;margin:10px 0 2px}
+.lchip{min-width:38px;height:34px;padding:0 10px;border-radius:17px;color:#fff;font-weight:800;font-size:.9rem;border:2px solid rgba(255,255,255,.92);cursor:pointer;min-height:34px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.lchip.off{opacity:.3;text-decoration:line-through}
 .tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
 .card.dimmed{opacity:.4}
 .card svg{position:absolute;inset:0;width:100%;height:100%}
@@ -248,11 +251,11 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="mapView" class="view" hidden>
   <div id="mapBox" aria-label="Map of Trenčín">
     <div id="mapTiles"></div>
-    <svg id="mapSvg"><defs><pattern id="xhatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="rgba(47,128,237,.2)"/><path d="M0 0H14M0 0V14" stroke="#2f80ed" stroke-width="1.8" opacity=".8" fill="none"/></pattern><linearGradient id="rdGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4b6f7d"/><stop offset="1" stop-color="#1a4a68"/></linearGradient><pattern id="rdStripes" width="11.6" height="11.6" patternUnits="userSpaceOnUse" patternTransform="rotate(27)"><rect x="1" y="0" width="4.8" height="11.6" fill="rgba(8,28,46,.34)"/></pattern></defs><path id="mapMask" fill="url(#rdGrad)" fill-opacity=".84" fill-rule="evenodd"/><path id="mapMask2" fill="url(#rdStripes)" fill-rule="evenodd"/><path id="mapLine" fill="none" stroke="#e8383d" stroke-width="3" stroke-linejoin="round"/><g id="mapRadar"></g><g id="mapZones"></g><g id="mapBus"></g><g id="mapInk" fill="none" stroke-linecap="round" stroke-linejoin="round"></g><g id="mapMe"></g></svg>
+    <svg id="mapSvg"><defs><pattern id="xhatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="rgba(47,128,237,.2)"/><path d="M0 0H14M0 0V14" stroke="#2f80ed" stroke-width="1.8" opacity=".8" fill="none"/></pattern><linearGradient id="rdGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4b6f7d"/><stop offset="1" stop-color="#1a4a68"/></linearGradient><pattern id="rdStripes" width="11.6" height="11.6" patternUnits="userSpaceOnUse" patternTransform="rotate(27)"><rect x="1" y="0" width="4.8" height="11.6" fill="rgba(8,28,46,.34)"/></pattern></defs><path id="mapMask" fill="url(#rdGrad)" fill-opacity=".84" fill-rule="evenodd"/><path id="mapMask2" fill="url(#rdStripes)" fill-rule="evenodd"/><path id="mapLine" fill="none" stroke="#e8383d" stroke-width="3" stroke-linejoin="round"/><g id="mapLines"></g><g id="mapRadar"></g><g id="mapZones"></g><g id="mapBus"></g><g id="mapInk" fill="none" stroke-linecap="round" stroke-linejoin="round"></g><g id="mapMe"></g></svg>
     <div class="mapctl"><button id="mZin" aria-label="Zoom in">+</button><button id="mZout" aria-label="Zoom out">−</button><button id="mFit" aria-label="Show the whole playing area">⌖</button><button id="mLoc" hidden aria-label="Follow my location">◎</button></div>
     <a class="mapat" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
   </div>
-  <div class="mapbar" id="mapTools"><button class="ghost" id="bDraw">✏️ Draw on map</button><button class="ghost" id="bGps">📍 My location</button><button class="ghost" id="bBus">🚌 Hide bus stops</button><button class="ghost" id="bZones" hidden>🧹 Clear marked areas</button><button class="ghost" id="bRadar" hidden>🧹 Clear radar areas</button></div>
+  <div class="mapbar" id="mapTools"><button class="ghost" id="bDraw">✏️ Draw on map</button><button class="ghost" id="bGps">📍 My location</button><button class="ghost" id="bLines">🚍 Hide bus lines</button><button class="ghost" id="bBus">🚌 Hide bus stops</button><button class="ghost" id="bZones" hidden>🧹 Clear marked areas</button><button class="ghost" id="bRadar" hidden>🧹 Clear radar areas</button></div>
   <div class="mapbar" id="drawBar" hidden>
     <div class="drawmsg">One finger draws. Two fingers move and zoom the map.</div>
     <span id="swatches" style="display:flex;gap:8px"></span>
@@ -261,6 +264,8 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
     <button class="primary" id="dDone" style="padding:8px 18px;font-size:.95rem">✅ Done</button>
   </div>
   <p class="sub" id="gpsNote" hidden></p>
+  <div class="legend" id="lineLegend" hidden></div>
+  <p class="sub" id="lineNote" hidden></p>
   <p class="sub" id="busNote" hidden></p>
   <p class="sub" id="mapNote"></p>
 </div>
@@ -272,7 +277,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 // Runs on its own, so it still works if something in the main script fails.
-window.BUILD="25 · 14 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "radar", "polish", "start"];
+window.BUILD="26 · 15 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "lines", "radar", "polish", "start"];
 window.repairApp=function(){
   window.__noUnloadPrompt=true;
   var jobs=[];
@@ -894,7 +899,7 @@ function mapDraw(){
     }
     $("mapMask").setAttribute("d",d);$("mapMask2").setAttribute("d",d);$("mapLine").setAttribute("d",ln);
   }
-  for(const f of ["drawRadar","drawBus","drawInk","drawMe"]){try{if(typeof window[f]==="function")window[f](S)}catch(_){}}
+  for(const f of ["drawLines","drawRadar","drawBus","drawInk","drawMe"]){try{if(typeof window[f]==="function")window[f](S)}catch(_){}}
   mapPurge();
 }
 function zoomAbout(px,py,dz){
@@ -964,6 +969,7 @@ function initMap(){
   window.addEventListener("resize",mapResize);
   setBorder(PLAY_BORDER,BORDER_NOTE);
   busStatus();
+  try{if(typeof loadLines==="function"&&LN.show)loadLines()}catch(_){}
 }
 ;(window.__steps=window.__steps||[]).push("map");
 </script>
@@ -1227,6 +1233,125 @@ $("bBus").onclick=()=>{
 $("bZones").onclick=()=>{if(M.zones.size&&confirm("Remove all marked areas?")){M.zones.clear();saveZones();busUi();mapRender()}};
 busUi();
 ;(window.__steps=window.__steps||[]).push("bus");
+</script>
+<script>
+/* ---------- city bus lines (OpenStreetMap "MHD Trenčín" routes, saved on this device) ---------- */
+const LN_KEY="bc_lines_v1",LN_OFF="bc_lines_off_v1",LN_SHOW="bc_lines_show_v1",LN_MINZ=13;
+const LN={lines:{},off:new Set(),show:true};
+try{LN.show=localStorage.getItem(LN_SHOW)!=="0"}catch(_){}
+try{const a=JSON.parse(localStorage.getItem(LN_OFF));if(Array.isArray(a))LN.off=new Set(a)}catch(_){}
+const LN_BOX=[HOME[0]-.12,HOME[1]-.2,HOME[0]+.12,HOME[1]+.2];
+const lnColor=r=>{const n=parseInt(r,10),h=isNaN(n)?(String(r).charCodeAt(0)*53)%360:(n*137.5)%360;return "hsl("+Math.round(h)+",72%,42%)"};
+const lnY2Lat=y=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*y)));
+function lnNote(t){const n=$("lineNote");n.textContent=t||"";n.hidden=!t}
+function lnSort(a,b){const x=parseInt(a,10),y=parseInt(b,10);return (isNaN(x)?999:x)-(isNaN(y)?999:y)||String(a).localeCompare(String(b))}
+function dpSimplify(pts,eps){
+  if(pts.length<3)return pts;
+  const keep=new Uint8Array(pts.length);keep[0]=keep[pts.length-1]=1;
+  const st=[[0,pts.length-1]];
+  while(st.length){
+    const [a,b]=st.pop();let md=0,mi=-1;
+    const A=pts[a],B=pts[b],dx=B[1]-A[1],dy=B[0]-A[0],L=dx*dx+dy*dy;
+    for(let i=a+1;i<b;i++){
+      const P=pts[i];let t=L?((P[1]-A[1])*dx+(P[0]-A[0])*dy)/L:0;t=Math.max(0,Math.min(1,t));
+      const ex=A[1]+t*dx-P[1],ey=A[0]+t*dy-P[0],d=ex*ex+ey*ey;
+      if(d>md){md=d;mi=i}
+    }
+    if(md>eps*eps&&mi>0){keep[mi]=1;st.push([a,mi],[mi,b])}
+  }
+  return pts.filter((_,i)=>keep[i]);
+}
+// keep the numbered city lines; the P and N lines are left out on purpose
+function parseLines(j){
+  const out={};
+  for(const rel of j.elements||[]){
+    if(rel.type!=="relation")continue;
+    const t=rel.tags||{},ref=String(t.ref||"").trim();
+    if(!ref||/^[PN]/i.test(ref))continue;
+    if(!(/MHD\s*Tren/i.test(t.network||"")||/Transdev/i.test(t.operator||"")))continue;
+    const e=out[ref]||(out[ref]={name:t.name||("Bus "+ref),ways:[],seen:{}});
+    for(const m of rel.members||[]){
+      if(m.type!=="way"||!m.geometry||/platform|stop/i.test(m.role||""))continue;
+      if(e.seen[m.ref])continue;e.seen[m.ref]=1;
+      const s=dpSimplify(m.geometry.map(g=>[+g.lat.toFixed(5),+g.lon.toFixed(5)]),0.00003);
+      if(s.length>1)e.ways.push(s);
+    }
+  }
+  for(const k in out){delete out[k].seen;if(!out[k].ways.length)delete out[k]}
+  return out;
+}
+async function fetchLines(){
+  const bb="("+LN_BOX.join(",")+")";
+  const q='[out:json][timeout:60];(relation["route"="bus"]["network"~"MHD Tren",i]'+bb+';relation["route"="bus"]["operator"="Transdev"]'+bb+';);out geom;';
+  for(const base of ["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"]){
+    try{
+      const c=new AbortController(),t=setTimeout(()=>c.abort(),50000);
+      const r=await fetch(base+"?data="+encodeURIComponent(q),{signal:c.signal});clearTimeout(t);
+      if(!r.ok)continue;
+      const L=parseLines(await r.json());if(Object.keys(L).length)return L;
+    }catch(_){}
+  }
+  return null;
+}
+function lnPrep(){for(const r in LN.lines)for(const w of LN.lines[r].ways){let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const p of w){a=Math.min(a,p[0]);c=Math.max(c,p[0]);b=Math.min(b,p[1]);d=Math.max(d,p[1])}w.bb=[a,b,c,d]}}
+function lnStatus(){
+  const n=Object.keys(LN.lines).length;
+  lnNote(LN.show&&n?"🚍 "+n+" city bus lines (from OpenStreetMap). Zoom in to see them. Tap a number to hide or show a line.":"");
+  lnLegend();
+}
+function lnLegend(){
+  const box=$("lineLegend"),refs=Object.keys(LN.lines).sort(lnSort);
+  box.innerHTML="";box.hidden=!(LN.show&&refs.length);
+  refs.forEach(r=>{
+    const b=document.createElement("button");b.className="lchip"+(LN.off.has(r)?" off":"");b.textContent=r;b.style.background=lnColor(r);
+    b.title=LN.lines[r].name;b.setAttribute("aria-label","Bus line "+r);
+    b.onclick=()=>{LN.off.has(r)?LN.off.delete(r):LN.off.add(r);try{localStorage.setItem(LN_OFF,JSON.stringify([...LN.off]))}catch(_){}lnLegend();mapRender()};
+    box.appendChild(b);
+  });
+}
+async function loadLines(){
+  let c=null;try{c=JSON.parse(localStorage.getItem(LN_KEY))}catch(_){}
+  if(c&&c.lines&&Object.keys(c.lines).length){LN.lines=c.lines;lnPrep();lnStatus();mapRender();if(Date.now()-c.t<45*864e5)return}
+  else lnNote("🚍 Loading bus lines...");
+  const L=await fetchLines();
+  if(L){LN.lines=L;lnPrep();try{localStorage.setItem(LN_KEY,JSON.stringify({t:Date.now(),lines:L}))}catch(_){}lnStatus();mapRender()}
+  else if(!Object.keys(LN.lines).length)lnNote("🚍 Bus lines need internet the first time. They are then saved on this device.");
+}
+function drawLines(S){
+  const g=$("mapLines");
+  if(!LN.show||M.z<LN_MINZ){g.innerHTML="";return}
+  const refs=Object.keys(LN.lines).filter(r=>!LN.off.has(r)).sort(lnSort);
+  if(!refs.length){g.innerHTML="";return}
+  const w=Math.min(7,3+(M.z-LN_MINZ)*0.9),step=M.z<14.5?3:1;
+  const x0=(M.cx-M.w/2/S)*360-180,x1=(M.cx+M.w/2/S)*360-180,la1=lnY2Lat(M.cy-M.h/2/S),la0=lnY2Lat(M.cy+M.h/2/S);
+  const X=lon=>(mx(lon)-M.cx)*S+M.w/2,Y=lat=>(my(lat)-M.cy)*S+M.h/2;
+  let cas="",col="",lab="";
+  for(const r of refs){
+    let d="",pin=null;
+    for(const way of LN.lines[r].ways){
+      const bb=way.bb;if(bb&&(bb[2]<la0||bb[0]>la1||bb[3]<x0||bb[1]>x1))continue;
+      const n=way.length;
+      for(let i=0;i<n;i+=step){const p=way[i];d+=(i?"L":"M")+X(p[1]).toFixed(1)+" "+Y(p[0]).toFixed(1)}
+      const last=way[n-1];if((n-1)%step)d+="L"+X(last[1]).toFixed(1)+" "+Y(last[0]).toFixed(1);
+      if(!pin&&n>3){const m=way[n>>1],px=X(m[1]),py=Y(m[0]);if(px>14&&px<M.w-14&&py>14&&py<M.h-14)pin=[px,py]}
+    }
+    if(!d)continue;
+    const c=lnColor(r);
+    cas+='<path d="'+d+'"/>';
+    col+='<path d="'+d+'" stroke="'+c+'"/>';
+    if(pin&&M.z>=15){const wd=10+r.length*8;lab+='<g transform="translate('+pin[0].toFixed(1)+' '+pin[1].toFixed(1)+')"><rect x="'+(-wd/2)+'" y="-10" width="'+wd+'" height="20" rx="10" fill="'+c+'" stroke="#fff" stroke-width="2"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" font-family="Montserrat,system-ui,Arial,sans-serif">'+r+'</text></g>'}
+  }
+  g.innerHTML='<g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-opacity=".8" stroke-width="'+(w+2.6).toFixed(1)+'">'+cas+'</g><g stroke-opacity=".92" stroke-width="'+w.toFixed(1)+'">'+col+'</g></g>'+lab;
+}
+function lnUi(){$("bLines").textContent=LN.show?"🚍 Hide bus lines":"🚍 Show bus lines"}
+$("bLines").onclick=()=>{
+  LN.show=!LN.show;try{localStorage.setItem(LN_SHOW,LN.show?"1":"0")}catch(_){}
+  lnUi();
+  if(LN.show&&!Object.keys(LN.lines).length)loadLines();else lnStatus();
+  mapRender();
+};
+lnUi();
+;(window.__steps=window.__steps||[]).push("lines");
 </script>
 <script>
 /* ---------- radar question: cross out the radius (or everything outside it) ---------- */
