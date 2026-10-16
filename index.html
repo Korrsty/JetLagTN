@@ -131,6 +131,7 @@ h2{letter-spacing:.01em}
 .legend{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;width:100%;max-width:760px;margin:10px 0 2px}
 .lchip{min-width:38px;height:34px;padding:0 10px;border-radius:17px;color:#fff;font-weight:800;font-size:.9rem;border:2px solid rgba(255,255,255,.92);cursor:pointer;min-height:34px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .lchip.off{opacity:.3;text-decoration:line-through}
+#lineNote{white-space:pre-line}
 .tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
 .card.dimmed{opacity:.4}
 .card svg{position:absolute;inset:0;width:100%;height:100%}
@@ -278,7 +279,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 // Runs on its own, so it still works if something in the main script fails.
-window.BUILD="27 · 15 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "lines", "radar", "polish", "start"];
+window.BUILD="28 · 16 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "lines", "radar", "polish", "start"];
 window.repairApp=function(){
   window.__noUnloadPrompt=true;
   var jobs=[];
@@ -1238,13 +1239,74 @@ busUi();
 <script>
 /* ---------- city bus lines (OpenStreetMap "MHD Trenčín" routes, saved on this device) ---------- */
 const LN_KEY="bc_lines_v2",LN_OFF="bc_lines_off_v1",LN_SHOW="bc_lines_show_v1";
-const LN={lines:{},off:new Set(),show:true};
+const LN={lines:{},draw:{},check:{},off:new Set(),show:true};
 try{LN.show=localStorage.getItem(LN_SHOW)!=="0"}catch(_){}
 try{const a=JSON.parse(localStorage.getItem(LN_OFF));if(Array.isArray(a))LN.off=new Set(a)}catch(_){}
 const _pb=bboxOf(PLAY_BORDER);                                   // [minLon,minLat,maxLon,maxLat]
 const LN_BOX=[_pb[1]-.02,_pb[0]-.03,_pb[3]+.02,_pb[2]+.03];        // south, west, north, east
 const lnMinZ=()=>(M.zFit||12)+0.3;
-const lnColor=r=>{const n=parseInt(r,10),h=isNaN(n)?(String(r).charCodeAt(0)*53)%360:(n*137.5)%360;return "hsl("+Math.round(h)+",72%,42%)"};
+const LN_COLORS={"1":"#2687b8","2":"#2ba052","3":"#7c0b75","4":"#d36528","11":"#d36528","6":"#c892c5","16":"#c892c5","7":"#d93393","8":"#ad242d","23":"#e9c169","24":"#005e32","25":"#1acdfe"};
+const lnColor=r=>{if(LN_COLORS[r])return LN_COLORS[r];const n=parseInt(r,10),h=isNaN(n)?(String(r).charCodeAt(0)*53)%360:(n*137.5)%360;return "hsl("+Math.round(h)+",72%,42%)"};
+const lnInk=c=>{if(c[0]!=="#")return "#fff";const v=parseInt(c.slice(1),16);return (0.299*(v>>16&255)+0.587*(v>>8&255)+0.114*(v&255))>150?"#263343":"#fff"};
+// Stop lists from the official timetable, in order. Used to check the drawn route and to redraw it if OpenStreetMap differs.
+const OFFICIAL={
+  "1":["Juh, Gen. Svobodu","Ku Štvrtiam","Inovecká","Inovecká, stred","28. októbra","Dolný Šianec","Legionárska","Braneckého","Gymnázium","Hasičská","Autobusová stanica","Gen. M. R. Štefánika","K výstavisku","Kubranská, BILLA","Pred poľom","Žilinská","Ivana Krasku","Sihoť IV"]
+};
+const lnNorm=t=>String(t).toLowerCase().trim();
+const stopLL=n=>{const s=STOPS.find(x=>lnNorm(x[2])===lnNorm(n));return s?[s[0],s[1]]:null};
+const lnDist=(a,b)=>{const kx=111320*Math.cos(a[0]*Math.PI/180);return Math.hypot((a[1]-b[1])*kx,(a[0]-b[0])*110574)};
+function segDist(p,a,b){
+  const kx=111320*Math.cos(p[0]*Math.PI/180),px=0,py=0,ax=(a[1]-p[1])*kx,ay=(a[0]-p[0])*110574,bx=(b[1]-p[1])*kx,by=(b[0]-p[0])*110574;
+  const dx=bx-ax,dy=by-ay,L=dx*dx+dy*dy;let t=L?((px-ax)*dx+(py-ay)*dy)/L:0;t=Math.max(0,Math.min(1,t));
+  return Math.hypot(ax+t*dx,ay+t*dy);
+}
+function wayNear(w,p,m){
+  const bb=w.bb;if(bb&&(p[0]<bb[0]-.002||p[0]>bb[2]+.002||p[1]<bb[1]-.003||p[1]>bb[3]+.003))return false;
+  for(let i=1;i<w.length;i++)if(segDist(p,w[i-1],w[i])<m)return true;
+  return false;
+}
+function lnGraph(){
+  const idx=new Map(),pts=[],adj=[];
+  const id=p=>{const k=p[0].toFixed(5)+","+p[1].toFixed(5);let i=idx.get(k);if(i===undefined){i=pts.length;idx.set(k,i);pts.push(p);adj.push([])}return i};
+  for(const r in LN.lines)for(const w of LN.lines[r].ways)for(let i=1;i<w.length;i++){
+    const a=id(w[i-1]),b=id(w[i]),d=lnDist(w[i-1],w[i]);adj[a].push([b,d,r]);adj[b].push([a,d,r]);
+  }
+  return {pts,adj};
+}
+function lnNearest(G,p,max){let best=-1,bd=max;for(let i=0;i<G.pts.length;i++){const d=lnDist(p,G.pts[i]);if(d<bd){bd=d;best=i}}return best}
+function lnRoute(G,A,B,ref){
+  const s=lnNearest(G,A,150),t=lnNearest(G,B,150);if(s<0||t<0)return null;if(s===t)return [G.pts[s]];
+  const n=G.pts.length,dist=new Float64Array(n).fill(Infinity),prev=new Int32Array(n).fill(-1),heap=[[0,s]];dist[s]=0;
+  const push=x=>{heap.push(x);let i=heap.length-1;while(i>0){const q=(i-1)>>1;if(heap[q][0]<=heap[i][0])break;[heap[q],heap[i]]=[heap[i],heap[q]];i=q}};
+  const pop=()=>{const top=heap[0],last=heap.pop();if(heap.length){heap[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<heap.length&&heap[l][0]<heap[m][0])m=l;if(r<heap.length&&heap[r][0]<heap[m][0])m=r;if(m===i)break;[heap[m],heap[i]]=[heap[i],heap[m]];i=m}}return top};
+  while(heap.length){
+    const [d,u]=pop();if(d>dist[u])continue;if(u===t)break;
+    for(const [v,w,er] of G.adj[u]){const nd=d+w*(er===ref?1:3);if(nd<dist[v]){dist[v]=nd;prev[v]=u;push([nd,v])}}
+  }
+  if(!isFinite(dist[t])||dist[t]>4*lnDist(A,B)+900)return null;
+  const path=[];for(let u=t;u!==-1;u=prev[u])path.push(G.pts[u]);return path.reverse();
+}
+const lnBB=p=>{let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const q of p){a=Math.min(a,q[0]);c=Math.max(c,q[0]);b=Math.min(b,q[1]);d=Math.max(d,q[1])}return [a,b,c,d]};
+function lnOfficial(){
+  const G=lnGraph();
+  for(const r of Object.keys(OFFICIAL)){
+    const ll=[],unknown=[];
+    OFFICIAL[r].forEach(n=>{const p=stopLL(n);p?ll.push({n,p}):unknown.push(n)});
+    if(ll.length<2)continue;
+    const own=(LN.lines[r]&&LN.lines[r].ways)||[];
+    const missing=ll.filter(x=>!own.some(w=>wayNear(w,x.p,60))).map(x=>x.n);
+    LN.check[r]={n:ll.length,missing,unknown,fallback:0};
+    if(!LN.lines[r])LN.lines[r]={name:"Line "+r,ways:[]};
+    if(!missing.length)continue;                       // OpenStreetMap passes every stop: keep it exactly as it is
+    const segs=[];
+    for(let i=0;i<ll.length-1;i++){
+      const A=ll[i].p,B=ll[i+1].p,path=lnRoute(G,A,B,r);
+      if(path)segs.push({p:[A,...path,B],dash:false});else{segs.push({p:[A,B],dash:true});LN.check[r].fallback++}
+    }
+    segs.forEach(sg=>{sg.bb=lnBB(sg.p)});
+    LN.draw[r]=segs;
+  }
+}
 const lnY2Lat=y=>180/Math.PI*Math.atan(Math.sinh(Math.PI*(1-2*y)));
 function lnNote(t){const n=$("lineNote");n.textContent=t||"";n.hidden=!t}
 function lnSort(a,b){const x=parseInt(a,10),y=parseInt(b,10);return (isNaN(x)?999:x)-(isNaN(y)?999:y)||String(a).localeCompare(String(b))}
@@ -1310,18 +1372,27 @@ async function fetchLines(){
   }
   return {lines:null,problems:problems.slice(0,4).join(" | "),seen};
 }
-function lnPrep(){for(const r in LN.lines)for(const w of LN.lines[r].ways){let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const p of w){a=Math.min(a,p[0]);c=Math.max(c,p[0]);b=Math.min(b,p[1]);d=Math.max(d,p[1])}w.bb=[a,b,c,d]}}
+function lnPrep(){
+  LN.draw={};LN.check={};
+  for(const r in LN.lines)for(const w of LN.lines[r].ways)w.bb=lnBB(w);
+  for(const r in LN.lines)LN.draw[r]=LN.lines[r].ways.map(w=>({p:w,dash:false,bb:w.bb}));
+  try{lnOfficial()}catch(e){}
+}
 function lnStatus(){
   const n=Object.keys(LN.lines).length;
   $("lineRetry").hidden=true;
-  lnNote(LN.show&&n?"🚍 "+n+" city bus lines (from OpenStreetMap). Zoom in a little to see them. Tap a number to hide or show a line.":"");
+  let t=LN.show&&n?"🚍 "+n+" city bus lines (from OpenStreetMap). Zoom in a little to see them. Tap a number to hide or show a line.":"";
+  if(t)for(const r in LN.check){const c=LN.check[r];
+    t+="\n"+(c.missing.length?"⚠️ Line "+r+": OpenStreetMap misses "+c.missing.length+" of "+c.n+" stops ("+c.missing.join(", ")+"), so it is drawn from your stop list"+(c.fallback?" (dashed parts are straight links)":"")+".":"✅ Line "+r+": matches your stop list ("+c.n+" stops).");
+    if(c.unknown.length)t+=" Unknown stops: "+c.unknown.join(", ")+"."}
+  lnNote(t);
   lnLegend();
 }
 function lnLegend(){
   const box=$("lineLegend"),refs=Object.keys(LN.lines).sort(lnSort);
   box.innerHTML="";box.hidden=!(LN.show&&refs.length);
   refs.forEach(r=>{
-    const b=document.createElement("button");b.className="lchip"+(LN.off.has(r)?" off":"");b.textContent=r;b.style.background=lnColor(r);
+    const b=document.createElement("button");b.className="lchip"+(LN.off.has(r)?" off":"");b.textContent=r;b.style.background=lnColor(r);b.style.color=lnInk(lnColor(r));
     b.title=LN.lines[r].name;b.setAttribute("aria-label","Bus line "+r);
     b.onclick=()=>{LN.off.has(r)?LN.off.delete(r):LN.off.add(r);try{localStorage.setItem(LN_OFF,JSON.stringify([...LN.off]))}catch(_){}lnLegend();mapRender()};
     box.appendChild(b);
@@ -1342,26 +1413,28 @@ async function loadLines(){
 function drawLines(S){
   const g=$("mapLines");
   if(!LN.show||M.z<lnMinZ()){g.innerHTML="";return}
-  const refs=Object.keys(LN.lines).filter(r=>!LN.off.has(r)).sort(lnSort);
+  const refs=Object.keys(LN.draw).filter(r=>!LN.off.has(r)).sort(lnSort);
   if(!refs.length){g.innerHTML="";return}
   const w=Math.min(7,3.2+(M.z-lnMinZ())*0.9),step=M.z<14.5?3:1;
   const x0=(M.cx-M.w/2/S)*360-180,x1=(M.cx+M.w/2/S)*360-180,la1=lnY2Lat(M.cy-M.h/2/S),la0=lnY2Lat(M.cy+M.h/2/S);
   const X=lon=>(mx(lon)-M.cx)*S+M.w/2,Y=lat=>(my(lat)-M.cy)*S+M.h/2;
   let cas="",col="",lab="";
   for(const r of refs){
-    let d="",pin=null;
-    for(const way of LN.lines[r].ways){
-      const bb=way.bb;if(bb&&(bb[2]<la0||bb[0]>la1||bb[3]<x0||bb[1]>x1))continue;
-      const n=way.length;
-      for(let i=0;i<n;i+=step){const p=way[i];d+=(i?"L":"M")+X(p[1]).toFixed(1)+" "+Y(p[0]).toFixed(1)}
-      const last=way[n-1];if((n-1)%step)d+="L"+X(last[1]).toFixed(1)+" "+Y(last[0]).toFixed(1);
+    let d="",dd="",pin=null;
+    for(const sg of LN.draw[r]){
+      const bb=sg.bb,way=sg.p;if(bb&&(bb[2]<la0||bb[0]>la1||bb[3]<x0||bb[1]>x1))continue;
+      const n=way.length;let q="";
+      for(let i=0;i<n;i+=step){const p=way[i];q+=(i?"L":"M")+X(p[1]).toFixed(1)+" "+Y(p[0]).toFixed(1)}
+      const last=way[n-1];if((n-1)%step)q+="L"+X(last[1]).toFixed(1)+" "+Y(last[0]).toFixed(1);
+      if(sg.dash)dd+=q;else d+=q;
       if(!pin&&n>3){const m=way[n>>1],px=X(m[1]),py=Y(m[0]);if(px>14&&px<M.w-14&&py>14&&py<M.h-14)pin=[px,py]}
     }
-    if(!d)continue;
+    if(!d&&!dd)continue;
     const c=lnColor(r);
-    cas+='<path d="'+d+'"/>';
-    col+='<path d="'+d+'" stroke="'+c+'"/>';
-    if(pin&&M.z>=15){const wd=10+r.length*8;lab+='<g transform="translate('+pin[0].toFixed(1)+' '+pin[1].toFixed(1)+')"><rect x="'+(-wd/2)+'" y="-10" width="'+wd+'" height="20" rx="10" fill="'+c+'" stroke="#fff" stroke-width="2"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" font-family="Montserrat,system-ui,Arial,sans-serif">'+r+'</text></g>'}
+    cas+='<path d="'+d+dd+'"/>';
+    if(d)col+='<path d="'+d+'" stroke="'+c+'"/>';
+    if(dd)col+='<path d="'+dd+'" stroke="'+c+'" stroke-dasharray="'+(w*2.2).toFixed(1)+' '+(w*1.6).toFixed(1)+'"/>';
+    if(pin&&M.z>=15){const wd=10+r.length*8;lab+='<g transform="translate('+pin[0].toFixed(1)+' '+pin[1].toFixed(1)+')"><rect x="'+(-wd/2)+'" y="-10" width="'+wd+'" height="20" rx="10" fill="'+c+'" stroke="#fff" stroke-width="2"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="'+lnInk(c)+'" font-family="Montserrat,system-ui,Arial,sans-serif">'+r+'</text></g>'}
   }
   g.innerHTML='<g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-opacity=".8" stroke-width="'+(w+2.6).toFixed(1)+'">'+cas+'</g><g stroke-opacity=".92" stroke-width="'+w.toFixed(1)+'">'+col+'</g></g>'+lab;
 }
