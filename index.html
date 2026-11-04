@@ -132,6 +132,13 @@ h2{letter-spacing:.01em}
 .lchip{min-width:38px;height:34px;padding:0 10px;border-radius:17px;color:#fff;font-weight:800;font-size:.9rem;border:2px solid rgba(255,255,255,.92);cursor:pointer;min-height:34px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .lchip.off{opacity:.3;text-decoration:line-through}
 #lineNote{white-space:pre-line}
+.timerbar{width:100%;max-width:760px;text-align:center;margin:0 0 14px;padding:10px 12px 12px}
+.tval{font:800 2.5rem/1.1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;color:var(--btn)}
+.tval.paused{color:var(--orange)}
+.tval.done{color:#9be7a5}
+.tsub{color:var(--muted);font-size:.85rem;min-height:1.3em;white-space:pre-line;margin-top:2px}
+.trow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.trow button{padding:8px 16px}
 .tag{position:absolute;top:.5em;left:50%;transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);font:700 .9em Arial,sans-serif;padding:1px 6px;border-radius:4px}
 .card.dimmed{opacity:.4}
 .card svg{position:absolute;inset:0;width:100%;height:100%}
@@ -200,6 +207,15 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <button class="ghost" id="goHome" style="align-self:flex-start;margin-bottom:10px">🏠 Home</button>
 <h1 id="gameTitle">🃏 Hider deck</h1>
 <p class="who" id="who"></p>
+<div class="timerbar panel" id="timerBar">
+  <div class="tval" id="tVal">00:00:00</div>
+  <div class="tsub" id="tSub"></div>
+  <div class="trow">
+    <button class="primary" id="tMain">▶️ Start hiding</button>
+    <button class="ghost" id="tFound" hidden>🏁 Found</button>
+    <button class="ghost" id="tReset" hidden>↺ Reset</button>
+  </div>
+</div>
 <div class="tabs" role="tablist">
   <button id="tabCards" class="on" role="tab">🃏 Cards</button>
   <button id="tabMap" role="tab">🗺️ Map</button>
@@ -279,7 +295,7 @@ label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.
 <div id="zoom" hidden role="dialog" aria-modal="true" aria-label="Card preview"></div>
 <script>
 // Runs on its own, so it still works if something in the main script fails.
-window.BUILD="29 · 16 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "lines", "radar", "polish", "start"];
+window.BUILD="31 · 18 Oct";window.__errs=[];window.__expected=["data", "faces", "savegame", "logic", "share", "home", "map", "ink", "gps", "questions", "bus", "lines", "radar", "polish", "timer", "start"];
 window.repairApp=function(){
   window.__noUnloadPrompt=true;
   var jobs=[];
@@ -522,6 +538,7 @@ function dupTarget(j){
 function confirmFun(){
   const {k,src}=mode,code=newCode(),e=mkEntry(k,code),all=k==="move"||(CURSE[k]&&CURSE[k].r==="hand");
   played.unshift(e);
+  if(k==="move"&&typeof timerAuto==="function")timerAuto("Move");
   if(all){discarded+=hand.length;hand=[]}else{hand.splice(src,1);discarded++}
   mode=null;render();celebrate(e);
 }
@@ -1619,6 +1636,60 @@ function buzz(){try{if(navigator.vibrate)navigator.vibrate(18)}catch(_){}}
 ;(window.__steps=window.__steps||[]).push("polish");
 </script>
 <script>
+/* ---------- hiding timer: can be paused, and keeps running correctly after a reload ---------- */
+const TM_KEY="bc_timer_v1";
+const TM_NEW={state:"idle",acc:0,start:0,pauses:0,pausedAt:0,pausedTotal:0,bonus:0};
+let TM=Object.assign({},TM_NEW);
+try{const t=JSON.parse(localStorage.getItem(TM_KEY));if(t&&["idle","running","paused","done"].includes(t.state))TM=Object.assign({},TM_NEW,t)}catch(_){}
+function tmSave(){try{localStorage.setItem(TM_KEY,JSON.stringify(TM))}catch(_){}}
+const tmFmt=ms=>{const s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(x).padStart(2,"0")};
+const tmElapsed=()=>TM.acc+(TM.state==="running"?Date.now()-TM.start:0);
+const tmBonusMin=()=>hand.reduce((t,c)=>t+(c.k==="time"?c.m:0),0);
+function timerUi(){
+  const st=TM.state,e=tmElapsed(),el=$("tVal"),main=$("tMain");
+  el.textContent=tmFmt(e);el.className="tval"+(st==="paused"?" paused":st==="done"?" done":"");
+  main.hidden=st==="done";
+  main.textContent=st==="idle"?"▶️ Start hiding":st==="running"?"⏸️ Pause":"▶️ Resume";
+  main.className=st==="running"?"ghost":"primary";
+  $("tFound").hidden=!(st==="running"||st==="paused");
+  $("tReset").hidden=!(st==="paused"||st==="done");
+  $("tReset").textContent=st==="done"?"↺ New timer":"↺ Reset";
+  const b=st==="done"?TM.bonus:tmBonusMin();
+  let t=st==="idle"?"Press start when your hiding time begins.":st==="paused"?"⏸️ Paused":st==="running"?"🫣 Hiding...":"🏁 Found!";
+  if(TM.pauses){const pt=TM.pausedTotal+(st==="paused"?Date.now()-TM.pausedAt:0);t+=" · paused "+TM.pauses+"× ("+tmFmt(pt)+")"}
+  if(st!=="idle"&&(b>0||st==="done"))t+="\n⏱️ + "+b+" min bonus = "+tmFmt(e+b*60000)+(st==="done"?" final":" total");
+  $("tSub").textContent=t;
+}
+function tmMain(){
+  const now=Date.now();
+  if(TM.state==="idle"){TM=Object.assign({},TM_NEW,{state:"running",start:now})}
+  else if(TM.state==="running"){TM.acc+=now-TM.start;TM.state="paused";TM.pausedAt=now;TM.pauses++}
+  else if(TM.state==="paused"){TM.pausedTotal+=now-TM.pausedAt;TM.state="running";TM.start=now}
+  tmSave();timerUi();
+  if(typeof buzz==="function")buzz();
+  if(typeof toast==="function")toast(TM.state==="running"?"▶️ Timer running":"⏸️ Timer paused");
+}
+function tmFound(){
+  const now=Date.now();
+  if(TM.state==="running")TM.acc+=now-TM.start;
+  else if(TM.state==="paused")TM.pausedTotal+=now-TM.pausedAt;
+  TM.state="done";TM.bonus=tmBonusMin();tmSave();timerUi();
+  if(typeof toast==="function")toast("🏁 Timer stopped");
+}
+function timerReset(){TM=Object.assign({},TM_NEW);tmSave();timerUi()}
+function timerAuto(reason){
+  if(TM.state!=="running")return;
+  tmMain();
+  if(typeof toast==="function")toast("⏸️ Timer paused ("+reason+"). Resume it when the new hiding period is over.");
+}
+$("tMain").onclick=tmMain;
+$("tFound").onclick=()=>{if(confirm("Stop the timer? This means the seekers found you."))tmFound()};
+$("tReset").onclick=()=>{if(confirm("Reset the timer to 00:00:00?"))timerReset()};
+setInterval(()=>{if(!$("game").hidden)timerUi()},500);
+timerUi();
+;(window.__steps=window.__steps||[]).push("timer");
+</script>
+<script>
 let tab="cards";
 function mountMap(host){
   const v=$("mapView");
@@ -1636,7 +1707,7 @@ function showTab(t){
 $("tabCards").onclick=()=>showTab("cards");
 $("tabMap").onclick=()=>showTab("map");
 $("draw").onclick=draw;
-$("shuffle").onclick=()=>{if(confirm("Start a new game? Your hand is cleared and the deck is reshuffled."))reset()};
+$("shuffle").onclick=()=>{if(confirm("Start a new game? Your hand is cleared and the deck is reshuffled.")){reset();if(typeof timerReset==="function")timerReset()}};
 document.addEventListener("keydown",e=>{
   if(e.code==="Space"&&!$("game").hidden&&!$("cardsView").hidden&&!["SELECT","BUTTON","INPUT"].includes(document.activeElement.tagName)){e.preventDefault();draw()}
 });
